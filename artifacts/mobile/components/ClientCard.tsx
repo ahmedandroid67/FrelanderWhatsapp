@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Client, PaymentStatus } from "@/context/DataContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { MessageTemplateSheet } from "./MessageTemplateSheet";
 import { QuickBookingModal } from "./QuickBookingModal";
 import { StatusBadge } from "./StatusBadge";
 
@@ -14,23 +15,38 @@ interface ClientCardProps {
   paymentStatus?: PaymentStatus;
 }
 
-async function sendWhatsApp(phone: string, name: string) {
-  const cleaned = phone.replace(/\D/g, "");
-  const msg = `Hi ${name}, just following up — let me know if you have any questions!`;
-  const native = `whatsapp://send?phone=${cleaned}&text=${encodeURIComponent(msg)}`;
-  const web = `https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`;
-  try {
-    const ok = await Linking.canOpenURL(native);
-    await Linking.openURL(ok ? native : web);
-  } catch {
-    await Linking.openURL(web);
-  }
-}
-
 export function ClientCard({ client, paymentStatus }: ClientCardProps) {
   const colors = useColors();
-  const { getPaymentForClient, updatePayment, setPayment } = useData();
+  const {
+    getPaymentForClient,
+    getBookingsForClient,
+    updatePayment,
+  } = useData();
+
   const [showBooking, setShowBooking] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const payment = getPaymentForClient(client.id);
+  const bookings = getBookingsForClient(client.id);
+
+  const nextBooking = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return [...bookings]
+      .filter((b) => b.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))[0];
+  }, [bookings]);
+
+  const balance =
+    payment && payment.totalAmount > payment.paidAmount
+      ? `$${(payment.totalAmount - payment.paidAmount).toFixed(2)}`
+      : undefined;
+
+  const today = new Date().toISOString().split("T")[0];
+  const isOverdue =
+    payment &&
+    payment.status !== "paid" &&
+    payment.dueDate &&
+    payment.dueDate < today;
 
   const initials = client.name
     .split(" ")
@@ -39,26 +55,7 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
     .slice(0, 2)
     .toUpperCase();
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/client/${client.id}`);
-  };
-
-  const handleWhatsApp = (e: any) => {
-    e.stopPropagation?.();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    sendWhatsApp(client.phone, client.name);
-  };
-
-  const handleBook = (e: any) => {
-    e.stopPropagation?.();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowBooking(true);
-  };
-
-  const handleMarkPaid = async (e: any) => {
-    e.stopPropagation?.();
-    const payment = getPaymentForClient(client.id);
+  const handleMarkPaid = async () => {
     if (paymentStatus === "paid") return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (payment) {
@@ -73,7 +70,10 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
   return (
     <>
       <Pressable
-        onPress={handlePress}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push(`/client/${client.id}`);
+        }}
         style={({ pressed }) => [
           styles.card,
           { backgroundColor: colors.card, borderColor: colors.border },
@@ -116,10 +116,14 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
           />
         </View>
 
-        {/* Action row — 3 quick actions, no navigation needed */}
+        {/* 3 quick-action buttons — no navigation */}
         <View style={[styles.actions, { borderTopColor: colors.border }]}>
           <Pressable
-            onPress={handleWhatsApp}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowTemplates(true);
+            }}
             style={({ pressed }) => [
               styles.actionBtn,
               { backgroundColor: "#25D36612" },
@@ -135,7 +139,11 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <Pressable
-            onPress={handleBook}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowBooking(true);
+            }}
             style={({ pressed }) => [
               styles.actionBtn,
               { backgroundColor: colors.primary + "10" },
@@ -151,13 +159,14 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <Pressable
-            onPress={handleMarkPaid}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              handleMarkPaid();
+            }}
             style={({ pressed }) => [
               styles.actionBtn,
               {
-                backgroundColor: isPaid
-                  ? "#10B98110"
-                  : "#F59E0B12",
+                backgroundColor: isPaid ? "#10B98110" : "#F59E0B12",
               },
               isPaid && styles.disabledAction,
               pressed && !isPaid && styles.actionPressed,
@@ -185,6 +194,20 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
         clientId={client.id}
         clientName={client.name}
         onClose={() => setShowBooking(false)}
+      />
+
+      <MessageTemplateSheet
+        visible={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        vars={{
+          phone: client.phone,
+          name: client.name,
+          amount: balance,
+          date: nextBooking?.date,
+          service: client.serviceType || undefined,
+        }}
+        suggestPayment={!!isOverdue}
+        suggestBooking={!!nextBooking}
       />
     </>
   );

@@ -1,0 +1,118 @@
+You are a senior full-stack developer. Enhance the ClientFlow app by implementing a flexible WhatsApp message template system.
+
+## 🎯 Goal
+
+Allow users to send professional, pre-written WhatsApp messages in 1 tap with dynamic variables.
+
+---
+
+## 🔥 Core Features
+
+### 1. Template System
+
+Create predefined templates:
+
+* Payment Reminder
+* Booking Confirmation
+* Follow-up Message
+* Invoice Message
+
+Each template should support variables:
+
+* {name}
+* {amount}
+* {date}
+* {service}
+
+---
+
+### 2. Example Templates
+
+Payment Reminder:
+"Hi {name}, just a reminder that your payment of {amount} is due today. Thank you!"
+
+Booking Confirmation:
+"Hi {name}, your booking is confirmed for {date}. See you then!"
+
+---
+
+### 3. WhatsApp Integration
+
+* Use WhatsApp deep links:
+  https://wa.me/{phone}?text={encoded_message}
+
+* Auto-replace variables before sending
+
+---
+
+### 4. UI Implementation
+
+On client screen:
+
+* Add “Send Message” button
+* When clicked:
+
+  * Show bottom sheet with templates
+  * User taps one → preview message
+  * Tap send → opens WhatsApp
+
+---
+
+### 5. Template Customization (IMPORTANT)
+
+* Allow users to:
+
+  * Edit templates
+  * Create new templates
+* Store in:
+
+  * Supabase (for sync)
+  * Local cache (offline support)
+
+---
+
+### 6. Smart Suggestions
+
+* If payment is overdue → suggest “Payment Reminder”
+* If booking exists → suggest “Booking Confirmation”
+
+---
+
+## 🧱 Database Changes (Supabase)
+
+Create table:
+
+### message_templates
+
+* id (uuid)
+* name (text)
+* content (text)
+* created_at
+
+---
+
+## ⚡ UX Requirements
+
+* Send message in ≤ 2 taps
+* Preview before sending
+* No typing required
+
+---
+
+## 🧠 Important Rules
+
+* Keep it simple
+* No complex editors
+* Focus on speed and usability
+
+---
+
+## 🚀 Deliverables
+
+* Template system implementation
+* UI components
+* Supabase integration
+* WhatsApp deep link logic
+* Example templates preloaded
+
+Now implement this feature in the existing app codebase.
