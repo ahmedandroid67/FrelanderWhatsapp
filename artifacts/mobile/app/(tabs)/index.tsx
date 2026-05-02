@@ -129,16 +129,28 @@ export default function DashboardScreen() {
               {dateStr}
             </Text>
           </View>
-          <Pressable
-            onPress={() => setShowQuickAdd(true)}
-            style={({ pressed }) => [
-              styles.addBtn,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] },
-            ]}
-          >
-            <Feather name="plus" size={22} color="#fff" />
-          </Pressable>
+          <View style={styles.headerBtns}>
+            <Pressable
+              onPress={() => router.push("/security")}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                { backgroundColor: colors.muted, borderColor: colors.border },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="shield" size={18} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable
+              onPress={() => setShowQuickAdd(true)}
+              style={({ pressed }) => [
+                styles.addBtn,
+                { backgroundColor: colors.primary },
+                pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] },
+              ]}
+            >
+              <Feather name="plus" size={22} color="#fff" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Stats */}
@@ -364,6 +376,19 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 13, fontWeight: "500" },
   dateStr: { fontSize: 20, fontWeight: "700", marginTop: 2 },
+  headerBtns: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
   addBtn: {
     width: 46,
     height: 46,
