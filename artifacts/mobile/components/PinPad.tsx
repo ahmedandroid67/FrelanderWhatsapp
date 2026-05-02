@@ -143,18 +143,22 @@ export function PinPad({
                     backgroundColor:
                       key === ""
                         ? "transparent"
+                        : key === "del"
+                        ? pressed
+                          ? colors.destructive + "22"
+                          : colors.border
                         : pressed
                         ? colors.primary + "18"
                         : colors.muted,
-                    borderColor: key === "" ? "transparent" : colors.border,
+                    borderColor: key === "" ? "transparent" : key === "del" ? colors.destructive + "55" : colors.border,
                   },
                 ]}
               >
                 {key === "del" ? (
                   <Feather
                     name="delete"
-                    size={22}
-                    color={colors.mutedForeground}
+                    size={24}
+                    color={colors.destructive}
                   />
                 ) : (
                   <Text style={[styles.keyText, { color: colors.foreground }]}>
