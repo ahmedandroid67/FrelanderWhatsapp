@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Platform,
@@ -13,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ClientCard } from "@/components/ClientCard";
 import { EmptyState } from "@/components/EmptyState";
+import { QuickAddModal } from "@/components/QuickAddModal";
 import type { ClientStatus } from "@/context/DataContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
@@ -32,6 +32,7 @@ export default function ClientsScreen() {
   const { clients, payments } = useData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ClientStatus | "All">("All");
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : 0;
   const botPad = Platform.OS === "web" ? 34 : 0;
@@ -68,10 +69,7 @@ export default function ClientsScreen() {
       <View
         style={[
           styles.header,
-          {
-            paddingTop: topPad + 12,
-            borderBottomColor: colors.border,
-          },
+          { paddingTop: topPad + 12, borderBottomColor: colors.border },
         ]}
       >
         <View
@@ -94,6 +92,7 @@ export default function ClientsScreen() {
             </Pressable>
           )}
         </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -105,7 +104,7 @@ export default function ClientsScreen() {
               key={s}
               onPress={() => setFilter(s)}
               style={[
-                styles.filterChip,
+                styles.chip,
                 {
                   backgroundColor:
                     filter === s ? colors.primary : colors.muted,
@@ -116,11 +115,8 @@ export default function ClientsScreen() {
             >
               <Text
                 style={[
-                  styles.filterText,
-                  {
-                    color:
-                      filter === s ? "#fff" : colors.mutedForeground,
-                  },
+                  styles.chipText,
+                  { color: filter === s ? "#fff" : colors.mutedForeground },
                 ]}
               >
                 {s}
@@ -134,7 +130,7 @@ export default function ClientsScreen() {
         style={styles.list}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + botPad + 100 },
+          { paddingBottom: insets.bottom + botPad + 110 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -144,7 +140,7 @@ export default function ClientsScreen() {
             title={search ? "No clients found" : "No clients yet"}
             subtitle={
               search
-                ? "Try a different search term"
+                ? "Try a different search"
                 : "Tap + to add your first client"
             }
           />
@@ -159,19 +155,25 @@ export default function ClientsScreen() {
         )}
       </ScrollView>
 
+      {/* FAB — opens quick bottom-sheet modal */}
       <Pressable
-        onPress={() => router.push("/client/form")}
+        onPress={() => setShowQuickAdd(true)}
         style={({ pressed }) => [
           styles.fab,
           {
             backgroundColor: colors.primary,
             bottom: insets.bottom + botPad + 20,
           },
-          pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] },
+          pressed && { opacity: 0.9, transform: [{ scale: 0.93 }] },
         ]}
       >
-        <Feather name="plus" size={26} color="#fff" />
+        <Feather name="plus" size={28} color="#fff" />
       </Pressable>
+
+      <QuickAddModal
+        visible={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+      />
     </View>
   );
 }
@@ -196,27 +198,27 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15 },
   filterRow: { marginHorizontal: -16 },
   filterContent: { paddingHorizontal: 16, gap: 8, flexDirection: "row" },
-  filterChip: {
+  chip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
   },
-  filterText: { fontSize: 13, fontWeight: "500" },
+  chipText: { fontSize: 13, fontWeight: "600" },
   list: { flex: 1 },
   listContent: { padding: 16 },
   fab: {
     position: "absolute",
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
 });
