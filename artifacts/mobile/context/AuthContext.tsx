@@ -9,8 +9,8 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 
-const PIN_KEY = "@cf_pin";
-const LOCK_KEY = "@cf_locked";
+const PIN_KEY = "cf_pin";
+const LOCK_KEY = "cf_locked";
 
 export type AuthState = "loading" | "setup" | "locked" | "unlocked";
 
