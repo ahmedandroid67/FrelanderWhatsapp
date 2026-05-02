@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "Cp9PGAQMKuG1KDd52XhGm"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "clientflow app icon"
+
+[[outputs]]
+id = "sOMPw7k52WNwZ1uDVucqP"
+uri = "file://artifacts/mobile/qr.png"
+type = "image"
+title = "Scan with Expo Go on Android"
