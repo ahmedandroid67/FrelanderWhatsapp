@@ -4,11 +4,44 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 export type ClientStatus = "Lead" | "Quoted" | "Booked" | "Completed" | "Paid";
 export type PaymentStatus = "unpaid" | "partial" | "paid";
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  content: string;
+  emoji: string;
+  isDefault: boolean;
+}
+
+const DEFAULT_TEMPLATES: MessageTemplate[] = [
+  {
+    id: "tpl_payment_reminder",
+    name: "Payment Reminder",
+    content: "Hi {name}, just a reminder that your payment of {amount} is overdue. Please let me know when you can settle this. Thank you!",
+    emoji: "💳",
+    isDefault: true,
+  },
+  {
+    id: "tpl_booking_confirm",
+    name: "Booking Confirmation",
+    content: "Hi {name}, your booking for {service} is confirmed for {date}. Looking forward to seeing you!",
+    emoji: "📅",
+    isDefault: true,
+  },
+  {
+    id: "tpl_followup",
+    name: "Follow-up",
+    content: "Hi {name}, just checking in! Hope you're happy with everything. Feel free to reach out anytime.",
+    emoji: "👋",
+    isDefault: true,
+  }
+];
 
 export interface Client {
   id: string;
@@ -51,6 +84,7 @@ interface DataContextType {
   bookings: Booking[];
   payments: Payment[];
   invoices: Invoice[];
+  templates: MessageTemplate[];
   isLoading: boolean;
   addClient: (data: Omit<Client, "id" | "createdAt">) => Promise<Client>;
   updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
@@ -69,6 +103,10 @@ interface DataContextType {
   getBookingsForClient: (clientId: string) => Booking[];
   getPaymentForClient: (clientId: string) => Payment | undefined;
   getInvoicesForClient: (clientId: string) => Invoice[];
+  addTemplate: (data: Omit<MessageTemplate, "id" | "isDefault">) => Promise<MessageTemplate>;
+  updateTemplate: (id: string, updates: Partial<MessageTemplate>) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
+  resetTemplates: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -78,10 +116,19 @@ const KEYS = {
   bookings: "@cf_bookings",
   payments: "@cf_payments",
   invoices: "@cf_invoices",
+  templates: "@cf_templates",
 };
 
 function genId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  // Use crypto.randomUUID when available, fallback to timestamp+random
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).substring(2, 9) +
+    Math.random().toString(36).substring(2, 9)
+  );
 }
 
 function computeStatus(total: number, paid: number): PaymentStatus {
@@ -90,12 +137,21 @@ function computeStatus(total: number, paid: number): PaymentStatus {
   return "partial";
 }
 
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // Refs hold current data synchronously (no stale closures in callbacks)
+  const clientsRef = useRef<Client[]>([]);
+  const bookingsRef = useRef<Booking[]>([]);
+  const paymentsRef = useRef<Payment[]>([]);
+  const invoicesRef = useRef<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Render state — triggers re-renders
+  const [clients, setClientsRender] = useState<Client[]>([]);
+  const [bookings, setBookingsRender] = useState<Booking[]>([]);
+  const [payments, setPaymentsRender] = useState<Payment[]>([]);
+  const [invoices, setInvoicesRender] = useState<Invoice[]>([]);
+  const [templates, setTemplates] = useState<MessageTemplate[]>(DEFAULT_TEMPLATES);
 
   useEffect(() => {
     async function load() {
@@ -106,10 +162,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(KEYS.payments),
           AsyncStorage.getItem(KEYS.invoices),
         ]);
-        if (c) setClients(JSON.parse(c));
-        if (b) setBookings(JSON.parse(b));
-        if (p) setPayments(JSON.parse(p));
-        if (i) setInvoices(JSON.parse(i));
+        const parsedClients = c ? (JSON.parse(c) as Client[]) : [];
+        const parsedBookings = b ? (JSON.parse(b) as Booking[]) : [];
+        const parsedPayments = p ? (JSON.parse(p) as Payment[]) : [];
+        const parsedInvoices = i ? (JSON.parse(i) as Invoice[]) : [];
+
+        clientsRef.current = parsedClients;
+        bookingsRef.current = parsedBookings;
+        paymentsRef.current = parsedPayments;
+        invoicesRef.current = parsedInvoices;
+
+        setClientsRender(parsedClients);
+        setBookingsRender(parsedBookings);
+        setPaymentsRender(parsedPayments);
+        setInvoicesRender(parsedInvoices);
+
+        const t = await AsyncStorage.getItem(KEYS.templates);
+        if (t) setTemplates(JSON.parse(t));
+        else {
+          await AsyncStorage.setItem(KEYS.templates, JSON.stringify(DEFAULT_TEMPLATES));
+        }
       } catch (e) {
         console.error("Failed to load data", e);
       } finally {
@@ -119,22 +191,50 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     load();
   }, []);
 
-  async function saveClients(updated: Client[]) {
-    setClients(updated);
-    await AsyncStorage.setItem(KEYS.clients, JSON.stringify(updated));
-  }
-  async function saveBookings(updated: Booking[]) {
-    setBookings(updated);
-    await AsyncStorage.setItem(KEYS.bookings, JSON.stringify(updated));
-  }
-  async function savePayments(updated: Payment[]) {
-    setPayments(updated);
-    await AsyncStorage.setItem(KEYS.payments, JSON.stringify(updated));
-  }
-  async function saveInvoices(updated: Invoice[]) {
-    setInvoices(updated);
-    await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(updated));
-  }
+  // Atomic updater: mutates ref, persists, then triggers render
+  const updateClients = useCallback(
+    async (updater: (prev: Client[]) => Client[]) => {
+      const next = updater(clientsRef.current);
+      clientsRef.current = next;
+      setClientsRender(next);
+      await AsyncStorage.setItem(KEYS.clients, JSON.stringify(next));
+      return next;
+    },
+    []
+  );
+
+  const updateBookings = useCallback(
+    async (updater: (prev: Booking[]) => Booking[]) => {
+      const next = updater(bookingsRef.current);
+      bookingsRef.current = next;
+      setBookingsRender(next);
+      await AsyncStorage.setItem(KEYS.bookings, JSON.stringify(next));
+      return next;
+    },
+    []
+  );
+
+  const updatePayments = useCallback(
+    async (updater: (prev: Payment[]) => Payment[]) => {
+      const next = updater(paymentsRef.current);
+      paymentsRef.current = next;
+      setPaymentsRender(next);
+      await AsyncStorage.setItem(KEYS.payments, JSON.stringify(next));
+      return next;
+    },
+    []
+  );
+
+  const updateInvoices = useCallback(
+    async (updater: (prev: Invoice[]) => Invoice[]) => {
+      const next = updater(invoicesRef.current);
+      invoicesRef.current = next;
+      setInvoicesRender(next);
+      await AsyncStorage.setItem(KEYS.invoices, JSON.stringify(next));
+      return next;
+    },
+    []
+  );
 
   const addClient = useCallback(
     async (data: Omit<Client, "id" | "createdAt">): Promise<Client> => {
@@ -143,54 +243,56 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         id: genId(),
         createdAt: new Date().toISOString(),
       };
-      await saveClients([...clients, client]);
+      await updateClients((prev) => [...prev, client]);
       return client;
     },
-    [clients]
+    [updateClients]
   );
 
   const updateClient = useCallback(
     async (id: string, updates: Partial<Client>) => {
-      await saveClients(
-        clients.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      await updateClients((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
       );
     },
-    [clients]
+    [updateClients]
   );
 
   const deleteClient = useCallback(
     async (id: string) => {
-      await saveClients(clients.filter((c) => c.id !== id));
-      await saveBookings(bookings.filter((b) => b.clientId !== id));
-      await savePayments(payments.filter((p) => p.clientId !== id));
-      await saveInvoices(invoices.filter((i) => i.clientId !== id));
+      await Promise.all([
+        updateClients((prev) => prev.filter((c) => c.id !== id)),
+        updateBookings((prev) => prev.filter((b) => b.clientId !== id)),
+        updatePayments((prev) => prev.filter((p) => p.clientId !== id)),
+        updateInvoices((prev) => prev.filter((i) => i.clientId !== id)),
+      ]);
     },
-    [clients, bookings, payments, invoices]
+    [updateClients, updateBookings, updatePayments, updateInvoices]
   );
 
   const addBooking = useCallback(
     async (data: Omit<Booking, "id">): Promise<Booking> => {
       const booking: Booking = { ...data, id: genId() };
-      await saveBookings([...bookings, booking]);
+      await updateBookings((prev) => [...prev, booking]);
       return booking;
     },
-    [bookings]
+    [updateBookings]
   );
 
   const updateBooking = useCallback(
     async (id: string, updates: Partial<Booking>) => {
-      await saveBookings(
-        bookings.map((b) => (b.id === id ? { ...b, ...updates } : b))
+      await updateBookings((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
       );
     },
-    [bookings]
+    [updateBookings]
   );
 
   const deleteBooking = useCallback(
     async (id: string) => {
-      await saveBookings(bookings.filter((b) => b.id !== id));
+      await updateBookings((prev) => prev.filter((b) => b.id !== id));
     },
-    [bookings]
+    [updateBookings]
   );
 
   const setPayment = useCallback(
@@ -199,25 +301,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       data: Omit<Payment, "id" | "status" | "clientId">
     ): Promise<Payment> => {
       const status = computeStatus(data.totalAmount, data.paidAmount);
-      const existing = payments.find((p) => p.clientId === clientId);
+      const existing = paymentsRef.current.find((p) => p.clientId === clientId);
       if (existing) {
         const updated = { ...existing, ...data, status };
-        await savePayments(
-          payments.map((p) => (p.clientId === clientId ? updated : p))
+        await updatePayments((prev) =>
+          prev.map((p) => (p.clientId === clientId ? updated : p))
         );
         return updated;
       }
       const payment: Payment = { id: genId(), clientId, ...data, status };
-      await savePayments([...payments, payment]);
+      await updatePayments((prev) => [...prev, payment]);
       return payment;
     },
-    [payments]
+    [updatePayments]
   );
 
   const updatePayment = useCallback(
     async (id: string, updates: Partial<Payment>) => {
-      await savePayments(
-        payments.map((p) => {
+      await updatePayments((prev) =>
+        prev.map((p) => {
           if (p.id !== id) return p;
           const updated = { ...p, ...updates };
           updated.status = computeStatus(updated.totalAmount, updated.paidAmount);
@@ -225,7 +327,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    [payments]
+    [updatePayments]
   );
 
   const addInvoice = useCallback(
@@ -235,18 +337,43 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         id: genId(),
         createdAt: new Date().toISOString(),
       };
-      await saveInvoices([...invoices, invoice]);
+      await updateInvoices((prev) => [...prev, invoice]);
       return invoice;
     },
-    [invoices]
+    [updateInvoices]
   );
 
   const deleteInvoice = useCallback(
     async (id: string) => {
-      await saveInvoices(invoices.filter((i) => i.id !== id));
+      await updateInvoices((prev) => prev.filter((i) => i.id !== id));
     },
-    [invoices]
+    [updateInvoices]
   );
+  
+  const addTemplate = useCallback(async (data: Omit<MessageTemplate, "id" | "isDefault">) => {
+    const tpl: MessageTemplate = { ...data, id: genId(), isDefault: false };
+    const next = [...templates, tpl];
+    setTemplates(next);
+    await AsyncStorage.setItem(KEYS.templates, JSON.stringify(next));
+    return tpl;
+  }, [templates]);
+
+  const updateTemplate = useCallback(async (id: string, updates: Partial<MessageTemplate>) => {
+    const next = templates.map(t => t.id === id ? { ...t, ...updates } : t);
+    setTemplates(next);
+    await AsyncStorage.setItem(KEYS.templates, JSON.stringify(next));
+  }, [templates]);
+
+  const deleteTemplate = useCallback(async (id: string) => {
+    const next = templates.filter(t => t.id !== id);
+    setTemplates(next);
+    await AsyncStorage.setItem(KEYS.templates, JSON.stringify(next));
+  }, [templates]);
+
+  const resetTemplates = useCallback(async () => {
+    setTemplates(DEFAULT_TEMPLATES);
+    await AsyncStorage.setItem(KEYS.templates, JSON.stringify(DEFAULT_TEMPLATES));
+  }, []);
 
   const getClientById = useCallback(
     (id: string) => clients.find((c) => c.id === id),
@@ -287,6 +414,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         getBookingsForClient,
         getPaymentForClient,
         getInvoicesForClient,
+        addTemplate,
+        updateTemplate,
+        deleteTemplate,
+        resetTemplates,
       }}
     >
       {children}

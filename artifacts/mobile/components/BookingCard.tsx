@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Booking, Client } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 
+import { useTranslation } from "react-i18next";
+
 interface BookingCardProps {
   booking: Booking;
   client?: Client;
@@ -13,14 +15,11 @@ interface BookingCardProps {
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   const [year, month, day] = dateStr.split("-");
-  const months = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec",
-  ];
-  return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
+  return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;
 }
 
 export function BookingCard({ booking, client, onPress }: BookingCardProps) {
+  const { t } = useTranslation();
   const colors = useColors();
   const today = new Date().toISOString().split("T")[0];
   const isToday = booking.date === today;
@@ -54,7 +53,7 @@ export function BookingCard({ booking, client, onPress }: BookingCardProps) {
             { color: isToday ? "#fff" : colors.mutedForeground },
           ]}
         >
-          {isToday ? "Today" : formatDate(booking.date)}
+          {isToday ? t("today") : formatDate(booking.date)}
         </Text>
       </View>
       <View style={styles.info}>
@@ -69,7 +68,7 @@ export function BookingCard({ booking, client, onPress }: BookingCardProps) {
         <View style={styles.row}>
           <Feather name="clock" size={12} color={colors.mutedForeground} />
           <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-            {booking.time || "No time set"}
+            {booking.time || t("unscheduled")}
           </Text>
         </View>
         {booking.location ? (

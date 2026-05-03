@@ -1,8 +1,8 @@
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -11,12 +11,16 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DatePickerModal } from "@/components/DatePickerModal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 export default function PaymentScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { clientId } = useLocalSearchParams<{ clientId: string }>();
@@ -28,7 +32,15 @@ export default function PaymentScreen() {
   const [total, setTotal] = useState(existing?.totalAmount.toString() ?? "");
   const [paid, setPaid] = useState(existing?.paidAmount.toString() ?? "");
   const [dueDate, setDueDate] = useState(existing?.dueDate ?? "");
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const formatDisplayDate = (d: string) => {
+    if (!d) return "dd/MM/yyyy";
+    const parts = d.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return d;
+  };
 
   const topPad = Platform.OS === "web" ? 67 : 0;
   const botPad = Platform.OS === "web" ? 34 : 0;
@@ -55,21 +67,20 @@ export default function PaymentScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <>
+    <KeyboardAwareScrollView
+      bottomOffset={Platform.OS === "ios" ? 0 : 20}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: insets.bottom + botPad + 24, paddingTop: topPad + 8 },
+      ]}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + botPad + 24, paddingTop: topPad + 8 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
         {client && (
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Payment for {client.name}
+            {t("paymentFor", { name: client.name })}
           </Text>
         )}
 
@@ -81,7 +92,7 @@ export default function PaymentScreen() {
         >
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Total Amount ($)
+              {t("totalAmount")}
             </Text>
             <TextInput
               style={[
@@ -103,7 +114,7 @@ export default function PaymentScreen() {
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Amount Paid ($)
+              {t("amountPaid")}
             </Text>
             <TextInput
               style={[
@@ -125,23 +136,24 @@ export default function PaymentScreen() {
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Due Date
+              {t("dueDate")}
             </Text>
-            <TextInput
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
               style={[
-                styles.input,
+                styles.dateBtn,
                 {
                   backgroundColor: colors.muted,
-                  color: colors.foreground,
                   borderColor: colors.border,
                 },
               ]}
-              value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.mutedForeground}
-              returnKeyType="done"
-            />
+            >
+              <Feather name="calendar" size={16} color={colors.primary} />
+              <Text style={[styles.dateBtnText, { color: dueDate ? colors.foreground : colors.mutedForeground }]}>
+                {dueDate ? formatDisplayDate(dueDate) : "dd/MM/yyyy"}
+              </Text>
+              <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+            </Pressable>
           </View>
         </View>
 
@@ -153,11 +165,11 @@ export default function PaymentScreen() {
             ]}
           >
             <Text style={[styles.summaryTitle, { color: colors.foreground }]}>
-              Summary
+              {t("summary")}
             </Text>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-                Total
+                {t("total")}
               </Text>
               <Text style={[styles.summaryValue, { color: colors.foreground }]}>
                 ${totalNum.toFixed(2)}
@@ -165,7 +177,7 @@ export default function PaymentScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-                Paid
+                {t("paid")}
               </Text>
               <Text style={[styles.summaryValue, { color: "#10B981" }]}>
                 ${paidNum.toFixed(2)}
@@ -174,7 +186,7 @@ export default function PaymentScreen() {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-                Balance
+                {t("balance")}
               </Text>
               <Text
                 style={[
@@ -203,10 +215,17 @@ export default function PaymentScreen() {
             isSaving && { opacity: 0.6 },
           ]}
         >
-          <Text style={styles.saveBtnText}>Save Payment</Text>
+          <Text style={styles.saveBtnText}>{t("savePayment")}</Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
+      <DatePickerModal
+        visible={showDatePicker}
+        value={dueDate}
+        label={t("selectDueDate")}
+        onConfirm={(d) => setDueDate(d)}
+        onClose={() => setShowDatePicker(false)}
+      />
+    </>
   );
 }
 
@@ -217,6 +236,16 @@ const styles = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 14 },
   field: { gap: 6 },
   label: { fontSize: 14, fontWeight: "600" },
+  dateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  dateBtnText: { flex: 1, fontSize: 15 },
   input: {
     borderRadius: 10,
     borderWidth: 1,

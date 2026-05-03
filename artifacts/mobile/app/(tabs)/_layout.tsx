@@ -12,21 +12,27 @@ import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 function NativeTabLayout() {
+  const { t } = useTranslation();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Dashboard</Label>
+        <Label>{t('home')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="clients">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
-        <Label>Clients</Label>
+        <Label>{t('clients')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="bookings">
-        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
-        <Label>Bookings</Label>
+        <Icon sf={{ default: "calendar", selected: "calendar" }} />
+        <Label>{t('bookings')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <Icon sf={{ default: "gear", selected: "gear" }} />
+        <Label>{t('settings')}</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -35,6 +41,7 @@ function NativeTabLayout() {
 function ClassicTabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
+  const { t } = useTranslation();
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
@@ -73,7 +80,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: t('home'),
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           tabBarIcon: ({ color }) =>
@@ -87,7 +94,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="clients"
         options={{
-          title: "Clients",
+          title: t('clients'),
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           tabBarIcon: ({ color }) =>
@@ -101,7 +108,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Bookings",
+          title: t('bookings'),
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           tabBarIcon: ({ color }) =>
@@ -109,6 +116,20 @@ function ClassicTabLayout() {
               <SymbolView name="calendar" tintColor={color} size={24} />
             ) : (
               <Feather name="calendar" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t('settings'),
+          headerStyle: { backgroundColor: colors.background },
+          headerShadowVisible: false,
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="gear" tintColor={color} size={24} />
+            ) : (
+              <Feather name="settings" size={22} color={color} />
             ),
         }}
       />

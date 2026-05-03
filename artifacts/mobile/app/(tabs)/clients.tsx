@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { ClientCard } from "@/components/ClientCard";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickAddModal } from "@/components/QuickAddModal";
@@ -27,12 +29,19 @@ const FILTERS: (ClientStatus | "All")[] = [
 ];
 
 export default function ClientsScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { clients, payments } = useData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ClientStatus | "All">("All");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   const topPad = Platform.OS === "web" ? 67 : 0;
   const botPad = Platform.OS === "web" ? 34 : 0;
@@ -81,7 +90,7 @@ export default function ClientsScreen() {
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             style={[styles.searchInput, { color: colors.foreground }]}
-            placeholder="Search clients..."
+            placeholder={t("searchClients")}
             placeholderTextColor={colors.mutedForeground}
             value={search}
             onChangeText={setSearch}
@@ -119,7 +128,7 @@ export default function ClientsScreen() {
                   { color: filter === s ? "#fff" : colors.mutedForeground },
                 ]}
               >
-                {s}
+                {s === "All" ? t("all") : t(`status${s}` as any)}
               </Text>
             </Pressable>
           ))}
@@ -130,18 +139,26 @@ export default function ClientsScreen() {
         style={styles.list}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + botPad + 110 },
+          { paddingBottom: insets.bottom + botPad + 170 },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {filtered.length === 0 ? (
           <EmptyState
             icon="users"
-            title={search ? "No clients found" : "No clients yet"}
+            title={search ? t("noClientsFound") : t("noClientsYet")}
             subtitle={
               search
-                ? "Try a different search"
-                : "Tap + to add your first client"
+                ? t("tryDifferentSearch")
+                : t("addFirstClient")
             }
           />
         ) : (
@@ -162,7 +179,7 @@ export default function ClientsScreen() {
           styles.fab,
           {
             backgroundColor: colors.primary,
-            bottom: insets.bottom + botPad + 20,
+            bottom: insets.bottom + botPad + 90,
           },
           pressed && { opacity: 0.9, transform: [{ scale: 0.93 }] },
         ]}

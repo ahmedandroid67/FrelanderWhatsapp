@@ -16,12 +16,11 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useColors } from "@/hooks/useColors";
-import {
-  type MessageTemplate,
-  fillTemplate,
-  useTemplates,
-} from "@/hooks/useTemplates";
+import { useData, MessageTemplate } from "@/context/DataContext";
+import { formatMessage } from "@/lib/messages";
+import { useTranslation } from "react-i18next";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
@@ -64,9 +63,9 @@ export function MessageTemplateSheet({
   suggestPayment = false,
   suggestBooking = false,
 }: MessageTemplateSheetProps) {
+  const { t } = useTranslation();
   const colors = useColors();
-  const { templates, addTemplate, updateTemplate, deleteTemplate } =
-    useTemplates();
+  const { templates, addTemplate, updateTemplate, deleteTemplate } = useData();
   const slideAnim = useRef(new Animated.Value(700)).current;
 
   const [view, setView] = useState<SheetView>("list");
@@ -104,7 +103,7 @@ export function MessageTemplateSheet({
   const handleSend = async () => {
     if (!selected) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const message = fillTemplate(selected.content, vars);
+    const message = formatMessage(selected.content, vars);
     await openWhatsApp(vars.phone, message);
     onClose();
   };
@@ -151,12 +150,12 @@ export function MessageTemplateSheet({
 
   const handleDeleteTemplate = (tpl: MessageTemplate) => {
     Alert.alert(
-      "Delete Template",
-      `Delete "${tpl.name}"?`,
+      t("delete"),
+      t("deleteClientConfirm", { name: tpl.name }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("delete"),
           style: "destructive",
           onPress: async () => {
             await deleteTemplate(tpl.id);
@@ -174,7 +173,7 @@ export function MessageTemplateSheet({
     }
   };
 
-  const previewText = selected ? fillTemplate(selected.content, vars) : "";
+  const previewText = selected ? formatMessage(selected.content, vars) : "";
 
   const suggested = templates.filter((t) => {
     if (suggestPayment && t.id === "tpl_payment_reminder") return true;
@@ -213,10 +212,20 @@ export function MessageTemplateSheet({
           {
             backgroundColor: colors.card,
             transform: [{ translateY: slideAnim }],
-            paddingBottom: Platform.OS === "ios" ? 44 : 24,
           },
         ]}
       >
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 0 : 20}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            { flexGrow: 1 },
+            { paddingBottom: Platform.OS === "ios" ? 44 : 28 },
+          ]}
+          style={{ flex: 1 }}
+        >
         {/* Handle + header */}
         <View style={[styles.handle, { backgroundColor: colors.border }]} />
         <View style={styles.sheetHeader}>
@@ -232,12 +241,12 @@ export function MessageTemplateSheet({
           )}
           <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
             {view === "list"
-              ? "Send Message"
+              ? t("sendWhatsApp")
               : view === "preview"
               ? selected?.name ?? ""
               : view === "new"
-              ? "New Template"
-              : "Edit Template"}
+              ? t("messageTemplates")
+              : t("edit")}
           </Text>
           <Pressable onPress={onClose} hitSlop={8}>
             <Feather name="x" size={20} color={colors.mutedForeground} />
@@ -504,6 +513,7 @@ export function MessageTemplateSheet({
             <View style={{ height: 20 }} />
           </ScrollView>
         )}
+        </KeyboardAwareScrollView>
       </Animated.View>
     </Modal>
   );
@@ -605,7 +615,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: "88%",
+    maxHeight: "90%",
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     shadowColor: "#000",
@@ -613,6 +623,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 20,
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
   },
   handle: {
     width: 40,

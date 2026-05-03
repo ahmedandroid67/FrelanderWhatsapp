@@ -4,16 +4,17 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Keyboard,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -108,115 +109,123 @@ export function QuickAddModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback
-        onPress={() => {
-          Keyboard.dismiss();
-          onClose();
-        }}
-      >
+      {/* Backdrop — tap to dismiss */}
+      <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
+      {/* Sheet slides up from bottom */}
       <Animated.View
         style={[
           styles.sheet,
           {
             backgroundColor: colors.card,
             transform: [{ translateY: slideAnim }],
-            paddingBottom: Platform.OS === "ios" ? 44 : 28,
           },
         ]}
       >
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
-
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            New Client
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Just 2 fields — done in seconds
-          </Text>
-        </View>
-
-        <TextInput
-          ref={nameRef}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              borderColor: nameError ? colors.destructive : colors.border,
-            },
+        {/* KeyboardAvoidingView wraps content so inputs slide above keyboard */}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 0 : 20}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: Platform.OS === "ios" ? 44 : 28 },
           ]}
-          placeholder="Full name *"
-          placeholderTextColor={colors.mutedForeground}
-          value={name}
-          onChangeText={(t) => {
-            setName(t);
-            setNameError(false);
-          }}
-          returnKeyType="next"
-          onSubmitEditing={() => phoneRef.current?.focus()}
-          autoCapitalize="words"
-          autoCorrect={false}
-        />
+        >
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-        <TextInput
-          ref={phoneRef}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              borderColor: phoneError ? colors.destructive : colors.border,
-            },
-          ]}
-          placeholder="Phone number *"
-          placeholderTextColor={colors.mutedForeground}
-          value={phone}
-          onChangeText={(t) => {
-            setPhone(t);
-            setPhoneError(false);
-          }}
-          keyboardType="phone-pad"
-          returnKeyType="done"
-          onSubmitEditing={handleSave}
-        />
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: colors.foreground }]}>
+                New Client
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+                Just 2 fields — done in seconds
+              </Text>
+            </View>
 
-        {lastService ? (
-          <View style={[styles.serviceHint, { backgroundColor: colors.muted }]}>
-            <Feather name="tag" size={13} color={colors.mutedForeground} />
-            <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-              Service: {lastService} (auto-filled)
-            </Text>
-          </View>
-        ) : null}
+            <TextInput
+              ref={nameRef}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.muted,
+                  color: colors.foreground,
+                  borderColor: nameError ? colors.destructive : colors.border,
+                },
+              ]}
+              placeholder="Full name *"
+              placeholderTextColor={colors.mutedForeground}
+              value={name}
+              onChangeText={(t) => {
+                setName(t);
+                setNameError(false);
+              }}
+              returnKeyType="next"
+              onSubmitEditing={() => phoneRef.current?.focus()}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
 
-        <View style={styles.btnRow}>
-          <Pressable
-            onPress={onClose}
-            style={[styles.cancelBtn, { borderColor: colors.border }]}
-          >
-            <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>
-              Cancel
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={handleSave}
-            disabled={isSaving}
-            style={({ pressed }) => [
-              styles.saveBtn,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.85 },
-              isSaving && { opacity: 0.6 },
-            ]}
-          >
-            <Feather name="user-plus" size={17} color="#fff" />
-            <Text style={styles.saveBtnText}>
-              {isSaving ? "Adding..." : "Add Client"}
-            </Text>
-          </Pressable>
-        </View>
+            <TextInput
+              ref={phoneRef}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.muted,
+                  color: colors.foreground,
+                  borderColor: phoneError ? colors.destructive : colors.border,
+                },
+              ]}
+              placeholder="Phone number *"
+              placeholderTextColor={colors.mutedForeground}
+              value={phone}
+              onChangeText={(t) => {
+                setPhone(t);
+                setPhoneError(false);
+              }}
+              keyboardType="phone-pad"
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
+            />
+
+            {lastService ? (
+              <View style={[styles.serviceHint, { backgroundColor: colors.muted }]}>
+                <Feather name="tag" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                  Service: {lastService} (auto-filled)
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.btnRow}>
+              <Pressable
+                onPress={onClose}
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSave}
+                disabled={isSaving}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  { backgroundColor: colors.primary },
+                  pressed && { opacity: 0.85 },
+                  isSaving && { opacity: 0.6 },
+                ]}
+              >
+                <Feather name="user-plus" size={17} color="#fff" />
+                <Text style={styles.saveBtnText}>
+                  {isSaving ? "Adding..." : "Add Client"}
+                </Text>
+              </Pressable>
+            </View>
+        </KeyboardAwareScrollView>
       </Animated.View>
     </Modal>
   );
@@ -234,13 +243,15 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    padding: 24,
-    gap: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 20,
+  },
+  content: {
+    padding: 24,
+    gap: 14,
   },
   handle: {
     width: 40,

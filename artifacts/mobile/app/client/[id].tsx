@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import type { ClientStatus } from "@/context/DataContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 const PIPELINE: ClientStatus[] = [
   "Lead",
@@ -30,6 +31,7 @@ const PIPELINE: ClientStatus[] = [
 ];
 
 export default function ClientDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -58,6 +60,18 @@ export default function ClientDetailScreen() {
 
   const today = new Date().toISOString().split("T")[0];
 
+  const formatDisplayDate = (d: string) => {
+    if (!d) return "";
+    const parts = d.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return d;
+  };
+
+  const formatInvoiceDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
   const nextBooking = useMemo(() => {
     return [...bookings]
       .filter((b) => b.date >= today)
@@ -77,7 +91,7 @@ export default function ClientDetailScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: client?.name ?? "Client",
+      title: client?.name ?? t("client"),
       headerRight: () =>
         client ? (
           <Pressable
@@ -98,7 +112,7 @@ export default function ClientDetailScreen() {
   if (!client) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <EmptyState icon="user-x" title="Client not found" />
+        <EmptyState icon="user-x" title={t("clientNotFound")} />
       </View>
     );
   }
@@ -110,12 +124,12 @@ export default function ClientDetailScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      "Delete Client",
-      `Delete ${client.name}? This also removes their bookings and payments.`,
+      t("deleteClient"),
+      t("deleteClientConfirm", { name: client.name }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("deleteClient"),
           style: "destructive",
           onPress: async () => {
             await deleteClient(client.id);
@@ -129,8 +143,8 @@ export default function ClientDetailScreen() {
   const handleGenerateInvoice = async () => {
     if (!payment) {
       Alert.alert(
-        "No Payment",
-        "Add payment details first to generate an invoice."
+        t("noPayment"),
+        t("addPaymentFirst")
       );
       return;
     }
@@ -138,9 +152,9 @@ export default function ClientDetailScreen() {
     await addInvoice({
       clientId: client.id,
       amount: payment.totalAmount,
-      description: client.serviceType || "Services",
+      description: client.serviceType || t("service"),
     });
-    Alert.alert("Invoice Created", "Invoice generated successfully.");
+    Alert.alert(t("invoiceCreated"), t("invoiceGenerated"));
   };
 
   const paymentBalance = payment ? payment.totalAmount - payment.paidAmount : null;
@@ -228,7 +242,7 @@ export default function ClientDetailScreen() {
             ]}
           >
             <Feather name="message-circle" size={17} color="#25D366" />
-            <Text style={styles.sendMsgText}>Send WhatsApp Message</Text>
+            <Text style={styles.sendMsgText}>{t("sendWhatsApp")}</Text>
             <View style={styles.sendMsgArrow}>
               <Feather name="chevron-right" size={14} color="#25D366" />
             </View>
@@ -243,7 +257,7 @@ export default function ClientDetailScreen() {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Pipeline
+            {t("pipeline")}
           </Text>
           <View style={styles.pipeline}>
             {PIPELINE.map((status, i) => {
@@ -287,7 +301,7 @@ export default function ClientDetailScreen() {
                       ]}
                       numberOfLines={1}
                     >
-                      {status}
+                      {t(`status${status}` as any)}
                     </Text>
                   </Pressable>
                   {i < PIPELINE.length - 1 && (
@@ -316,7 +330,7 @@ export default function ClientDetailScreen() {
         >
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Payment
+              {t("payment")}
             </Text>
             <Pressable onPress={() => router.push(`/payment/${client.id}`)}>
               <Feather
@@ -335,7 +349,7 @@ export default function ClientDetailScreen() {
                     { color: colors.mutedForeground },
                   ]}
                 >
-                  Total
+                  {t("total")}
                 </Text>
                 <Text
                   style={[styles.paymentValue, { color: colors.foreground }]}
@@ -350,7 +364,7 @@ export default function ClientDetailScreen() {
                     { color: colors.mutedForeground },
                   ]}
                 >
-                  Paid
+                  {t("paid")}
                 </Text>
                 <Text style={[styles.paymentValue, { color: "#10B981" }]}>
                   ${payment.paidAmount.toFixed(2)}
@@ -366,7 +380,7 @@ export default function ClientDetailScreen() {
                     { color: colors.mutedForeground },
                   ]}
                 >
-                  Balance
+                  {t("balance")}
                 </Text>
                 <Text
                   style={[
@@ -390,12 +404,12 @@ export default function ClientDetailScreen() {
                       { color: colors.mutedForeground },
                     ]}
                   >
-                    Due
+                    {t("due")}
                   </Text>
                   <Text
                     style={[styles.paymentValue, { color: colors.foreground }]}
                   >
-                    {payment.dueDate}
+                    {formatDisplayDate(payment.dueDate)}
                   </Text>
                 </View>
               ) : null}
@@ -407,13 +421,13 @@ export default function ClientDetailScreen() {
               style={[styles.addButton, { borderColor: colors.border }]}
             >
               <Feather name="plus" size={16} color={colors.mutedForeground} />
-              <Text
+                <Text
                 style={[
                   styles.addButtonText,
                   { color: colors.mutedForeground },
                 ]}
               >
-                Add payment details
+                {t("addPaymentDetails")}
               </Text>
             </Pressable>
           )}
@@ -428,7 +442,7 @@ export default function ClientDetailScreen() {
         >
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Bookings
+              {t("bookings")}
             </Text>
             <Pressable onPress={() => setShowBooking(true)}>
               <Feather name="plus" size={18} color={colors.primary} />
@@ -446,7 +460,7 @@ export default function ClientDetailScreen() {
                   { color: colors.mutedForeground },
                 ]}
               >
-                Add a booking
+                {t("addBooking")}
               </Text>
             </Pressable>
           ) : (
@@ -458,12 +472,19 @@ export default function ClientDetailScreen() {
                   booking={booking}
                   onPress={() => {
                     Alert.alert(
-                      `${booking.date}${booking.time ? ` · ${booking.time}` : ""}`,
+                      `${formatDisplayDate(booking.date)}${booking.time ? ` · ${booking.time}` : ""}`,
                       `${booking.location ? `📍 ${booking.location}\n` : ""}${booking.notes || ""}`,
                       [
-                        { text: "Close", style: "cancel" },
+                        { text: t("close"), style: "cancel" },
                         {
-                          text: "Delete",
+                          text: `✏️ ${t("edit")}`,
+                          onPress: () =>
+                            router.push(
+                              `/booking/form?clientId=${client.id}&bookingId=${booking.id}`
+                            ),
+                        },
+                        {
+                          text: `🗑 ${t("delete")}`,
                           style: "destructive",
                           onPress: () => deleteBooking(booking.id),
                         },
@@ -484,7 +505,7 @@ export default function ClientDetailScreen() {
             ]}
           >
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Invoices
+              {t("invoices")}
             </Text>
             {invoices.map((inv, idx) => (
               <View
@@ -509,7 +530,7 @@ export default function ClientDetailScreen() {
                       { color: colors.mutedForeground },
                     ]}
                   >
-                    {new Date(inv.createdAt).toLocaleDateString()}
+                    {formatInvoiceDate(inv.createdAt)}
                   </Text>
                 </View>
                 <Text style={[styles.invoiceAmount, { color: colors.primary }]}>
@@ -531,7 +552,7 @@ export default function ClientDetailScreen() {
             ]}
           >
             <Feather name="file-text" size={18} color="#fff" />
-            <Text style={styles.primaryBtnText}>Generate Invoice</Text>
+            <Text style={styles.primaryBtnText}>{t("generateInvoice")}</Text>
           </Pressable>
           <Pressable
             onPress={handleDelete}
@@ -545,7 +566,7 @@ export default function ClientDetailScreen() {
             <Text
               style={[styles.dangerBtnText, { color: colors.destructive }]}
             >
-              Delete Client
+              {t("deleteClient")}
             </Text>
           </Pressable>
         </View>

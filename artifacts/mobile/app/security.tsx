@@ -15,10 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PinPad } from "@/components/PinPad";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 type Mode = "menu" | "change-old" | "change-new" | "change-confirm";
 
 export default function SecurityScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { lock, clearAuth, unlockWithPin, setupPin, hasBiometrics } = useAuth();
@@ -37,12 +39,12 @@ export default function SecurityScreen() {
 
   const handleResetPin = () => {
     Alert.alert(
-      "Reset PIN",
-      "This will remove your PIN and require you to set a new one next time you open the app.",
+      t("resetPin"),
+      t("resetPinDesc"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Reset",
+          text: t("reset"),
           style: "destructive",
           onPress: async () => {
             await clearAuth();
@@ -76,7 +78,7 @@ export default function SecurityScreen() {
       await setupPin(pin);
       setPin("");
       setMode("menu");
-      Alert.alert("Success", "Your PIN has been updated.");
+      Alert.alert(t("success"), t("pinUpdated"));
     } else {
       setError(true);
       setPin("");
@@ -97,15 +99,15 @@ export default function SecurityScreen() {
   if (mode !== "menu") {
     const titles: Record<Mode, string> = {
       menu: "",
-      "change-old": "Enter current PIN",
-      "change-new": "Enter new PIN",
-      "change-confirm": "Confirm new PIN",
+      "change-old": t("enterCurrentPin"),
+      "change-new": t("enterNewPin"),
+      "change-confirm": t("confirmNewPin"),
     };
     const subtitles: Record<Mode, string> = {
       menu: "",
-      "change-old": "Verify your identity first",
-      "change-new": "Choose a new 6-digit PIN",
-      "change-confirm": "Re-enter your new PIN",
+      "change-old": t("verifyIdentity"),
+      "change-new": t("chooseNewPin"),
+      "change-confirm": t("reEnterNewPin"),
     };
     const onSubmit =
       mode === "change-old"
@@ -148,7 +150,7 @@ export default function SecurityScreen() {
 
         <Pressable onPress={cancelChange} style={styles.cancelBtn}>
           <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>
-            Cancel
+            {t("cancel")}
           </Text>
         </Pressable>
       </View>
@@ -175,11 +177,11 @@ export default function SecurityScreen() {
         </View>
         <View style={styles.headerText}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            App Security
+            {t("appSecurity")}
           </Text>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
-            Your data is protected with a PIN
-            {hasBiometrics ? " and biometrics" : ""}.
+            {t("dataProtected")}
+            {hasBiometrics ? t("andBiometrics") : ""}.
           </Text>
         </View>
       </View>
@@ -193,8 +195,8 @@ export default function SecurityScreen() {
       >
         <SettingRow
           icon="refresh-cw"
-          label="Change PIN"
-          subtitle="Update your 6-digit PIN"
+          label={t("changePin")}
+          subtitle={t("updatePinDesc")}
           onPress={() => {
             setPin("");
             setMode("change-old");
@@ -207,8 +209,8 @@ export default function SecurityScreen() {
 
         <SettingRow
           icon="lock"
-          label="Lock App Now"
-          subtitle="Require PIN to re-open"
+          label={t("lockAppNow")}
+          subtitle={t("requirePinToReopen")}
           onPress={handleLock}
           colors={colors}
           iconColor="#8B5CF6"
@@ -218,8 +220,8 @@ export default function SecurityScreen() {
 
         <SettingRow
           icon="trash-2"
-          label="Reset PIN"
-          subtitle="Remove PIN — you'll need to set a new one"
+          label={t("resetPin")}
+          subtitle={t("removePinDesc")}
           onPress={handleResetPin}
           colors={colors}
           iconColor={colors.destructive}
@@ -236,9 +238,7 @@ export default function SecurityScreen() {
       >
         <Feather name="info" size={14} color={colors.mutedForeground} />
         <Text style={[styles.infoText, { color: colors.mutedForeground }]}>
-          The app locks automatically when you switch away from it. Your PIN is
-          stored securely on this device using encrypted hardware storage and
-          is never transmitted anywhere.
+          {t("securityInfo")}
         </Text>
       </View>
     </ScrollView>

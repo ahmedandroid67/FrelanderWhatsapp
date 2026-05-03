@@ -3,16 +3,18 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Keyboard,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { DatePickerModal } from "@/components/DatePickerModal";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -35,11 +37,20 @@ export function QuickBookingModal({
   const { addBooking } = useData();
   const slideAnim = useRef(new Animated.Value(500)).current;
   const timeRef = useRef<TextInput>(null);
+  const locationRef = useRef<TextInput>(null);
 
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState("");
   const [location, setLocation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const formatDisplayDate = (d: string) => {
+    if (!d) return "";
+    const parts = d.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return d;
+  };
 
   useEffect(() => {
     if (visible) {
@@ -91,135 +102,135 @@ export function QuickBookingModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback
-        onPress={() => {
-          Keyboard.dismiss();
-          onClose();
-        }}
-      >
+      {/* Backdrop */}
+      <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
+      {/* Sheet */}
       <Animated.View
         style={[
           styles.sheet,
           {
             backgroundColor: colors.card,
             transform: [{ translateY: slideAnim }],
-            paddingBottom: Platform.OS === "ios" ? 44 : 28,
           },
         ]}
       >
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
-
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            Book {clientName ?? "Client"}
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Date auto-set to today
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.dateRow,
-            {
-              backgroundColor: colors.muted,
-              borderColor: colors.border,
-            },
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 0 : 20}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: Platform.OS === "ios" ? 44 : 28 },
           ]}
         >
-          <Feather name="calendar" size={18} color={colors.primary} />
-          <TextInput
-            style={[styles.dateInput, { color: colors.foreground }]}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.mutedForeground}
-            returnKeyType="next"
-            onSubmitEditing={() => timeRef.current?.focus()}
-          />
-          <Pressable
-            onPress={() =>
-              setDate(new Date().toISOString().split("T")[0])
-            }
-          >
-            <View
-              style={[
-                styles.todayPill,
-                { backgroundColor: colors.primary + "18" },
-              ]}
-            >
-              <Text style={[styles.todayText, { color: colors.primary }]}>
-                Today
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: colors.foreground }]}>
+                Book {clientName ?? "Client"}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+                Date auto-set to today
               </Text>
             </View>
-          </Pressable>
-        </View>
 
-        <TextInput
-          ref={timeRef}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              borderColor: colors.border,
-            },
-          ]}
-          placeholder="Time — e.g. 10:00 AM (optional)"
-          placeholderTextColor={colors.mutedForeground}
-          value={time}
-          onChangeText={setTime}
-          returnKeyType="next"
-        />
-
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              borderColor: colors.border,
-            },
-          ]}
-          placeholder="Location (optional)"
-          placeholderTextColor={colors.mutedForeground}
-          value={location}
-          onChangeText={setLocation}
-          returnKeyType="done"
-          onSubmitEditing={handleSave}
-        />
-
-        <View style={styles.btnRow}>
-          <Pressable
-            onPress={onClose}
-            style={[styles.cancelBtn, { borderColor: colors.border }]}
-          >
-            <Text
-              style={[styles.cancelText, { color: colors.mutedForeground }]}
+            {/* Date row — tap to open picker */}
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
+              style={[
+                styles.dateRow,
+                {
+                  backgroundColor: colors.muted,
+                  borderColor: colors.border,
+                },
+              ]}
             >
-              Cancel
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={handleSave}
-            disabled={isSaving}
-            style={({ pressed }) => [
-              styles.saveBtn,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.85 },
-              isSaving && { opacity: 0.6 },
-            ]}
-          >
-            <Feather name="calendar" size={17} color="#fff" />
-            <Text style={styles.saveBtnText}>
-              {isSaving ? "Saving..." : "Book It"}
-            </Text>
-          </Pressable>
-        </View>
+              <Feather name="calendar" size={18} color={colors.primary} />
+              <Text style={[styles.dateInput, { color: date ? colors.foreground : colors.mutedForeground }]}>
+                {date ? formatDisplayDate(date) : "Select date"}
+              </Text>
+              <View style={[styles.todayPill, { backgroundColor: colors.primary + "18" }]}>
+                <Text style={[styles.todayText, { color: colors.primary }]}>Tap to change</Text>
+              </View>
+            </Pressable>
+
+            <TextInput
+              ref={timeRef}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.muted,
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                },
+              ]}
+              placeholder="Time — e.g. 10:00 AM (optional)"
+              placeholderTextColor={colors.mutedForeground}
+              value={time}
+              onChangeText={setTime}
+              returnKeyType="next"
+              onSubmitEditing={() => locationRef.current?.focus()}
+            />
+
+            <TextInput
+              ref={locationRef}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.muted,
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                },
+              ]}
+              placeholder="Location (optional)"
+              placeholderTextColor={colors.mutedForeground}
+              value={location}
+              onChangeText={setLocation}
+              returnKeyType="done"
+              onSubmitEditing={handleSave}
+            />
+
+            <View style={styles.btnRow}>
+              <Pressable
+                onPress={onClose}
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+              >
+                <Text
+                  style={[styles.cancelText, { color: colors.mutedForeground }]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSave}
+                disabled={isSaving}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  { backgroundColor: colors.primary },
+                  pressed && { opacity: 0.85 },
+                  isSaving && { opacity: 0.6 },
+                ]}
+              >
+                <Feather name="calendar" size={17} color="#fff" />
+                <Text style={styles.saveBtnText}>
+                  {isSaving ? "Saving..." : "Book It"}
+                </Text>
+              </Pressable>
+            </View>
+        </KeyboardAwareScrollView>
       </Animated.View>
+
+      <DatePickerModal
+        visible={showDatePicker}
+        value={date}
+        label="Select booking date"
+        onConfirm={(d) => setDate(d)}
+        onClose={() => setShowDatePicker(false)}
+      />
     </Modal>
   );
 }
@@ -236,13 +247,15 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    padding: 24,
-    gap: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 20,
     elevation: 20,
+  },
+  content: {
+    padding: 24,
+    gap: 14,
   },
   handle: {
     width: 40,

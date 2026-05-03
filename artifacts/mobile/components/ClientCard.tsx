@@ -69,6 +69,7 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
 
   return (
     <>
+      {/* Card top — tapping this navigates to client detail */}
       <Pressable
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -115,79 +116,83 @@ export function ClientCard({ client, paymentStatus }: ClientCardProps) {
             color={colors.mutedForeground}
           />
         </View>
-
-        {/* 3 quick-action buttons — no navigation */}
-        <View style={[styles.actions, { borderTopColor: colors.border }]}>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowTemplates(true);
-            }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: "#25D36612" },
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <Feather name="message-circle" size={16} color="#25D366" />
-            <Text style={[styles.actionLabel, { color: "#25D366" }]}>
-              Message
-            </Text>
-          </Pressable>
-
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowBooking(true);
-            }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              { backgroundColor: colors.primary + "10" },
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <Feather name="calendar" size={16} color={colors.primary} />
-            <Text style={[styles.actionLabel, { color: colors.primary }]}>
-              Book
-            </Text>
-          </Pressable>
-
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              handleMarkPaid();
-            }}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              {
-                backgroundColor: isPaid ? "#10B98110" : "#F59E0B12",
-              },
-              isPaid && styles.disabledAction,
-              pressed && !isPaid && styles.actionPressed,
-            ]}
-          >
-            <Feather
-              name={isPaid ? "check-circle" : "dollar-sign"}
-              size={16}
-              color={isPaid ? "#10B981" : "#F59E0B"}
-            />
-            <Text
-              style={[
-                styles.actionLabel,
-                { color: isPaid ? "#10B981" : "#F59E0B" },
-              ]}
-            >
-              {isPaid ? "Paid ✓" : "Mark Paid"}
-            </Text>
-          </Pressable>
-        </View>
       </Pressable>
+
+      {/* Action row — separate Pressable zone, does NOT trigger card navigation */}
+      <View
+        style={[
+          styles.actions,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderTopColor: colors.border,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowTemplates(true);
+          }}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            { backgroundColor: "#25D36612" },
+            pressed && styles.actionPressed,
+          ]}
+        >
+          <Feather name="message-circle" size={16} color="#25D366" />
+          <Text style={[styles.actionLabel, { color: "#25D366" }]}>
+            Message
+          </Text>
+        </Pressable>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowBooking(true);
+          }}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            { backgroundColor: colors.primary + "10" },
+            pressed && styles.actionPressed,
+          ]}
+        >
+          <Feather name="calendar" size={16} color={colors.primary} />
+          <Text style={[styles.actionLabel, { color: colors.primary }]}>
+            Book
+          </Text>
+        </Pressable>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <Pressable
+          onPress={handleMarkPaid}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            {
+              backgroundColor: isPaid ? "#10B98110" : "#F59E0B12",
+            },
+            isPaid && styles.disabledAction,
+            pressed && !isPaid && styles.actionPressed,
+          ]}
+        >
+          <Feather
+            name={isPaid ? "check-circle" : "dollar-sign"}
+            size={16}
+            color={isPaid ? "#10B981" : "#F59E0B"}
+          />
+          <Text
+            style={[
+              styles.actionLabel,
+              { color: isPaid ? "#10B981" : "#F59E0B" },
+            ]}
+          >
+            {isPaid ? "Paid ✓" : "Mark Paid"}
+          </Text>
+        </Pressable>
+      </View>
 
       <QuickBookingModal
         visible={showBooking}
@@ -217,7 +222,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 10,
+    marginBottom: 2,
     overflow: "hidden",
   },
   pressed: { opacity: 0.75 },
@@ -242,6 +247,10 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     borderTopWidth: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    marginBottom: 10,
+    overflow: "hidden",
   },
   actionBtn: {
     flex: 1,

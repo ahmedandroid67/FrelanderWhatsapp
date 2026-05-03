@@ -3,7 +3,6 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -12,14 +11,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStatus } from "@/context/DataContext";
 import { useData } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { useTranslation } from "react-i18next";
 
 const STATUSES: ClientStatus[] = ["Lead", "Quoted", "Booked", "Completed", "Paid"];
 
 export default function ClientFormScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -40,8 +42,8 @@ export default function ClientFormScreen() {
 
   const validate = () => {
     const e: { name?: string; phone?: string } = {};
-    if (!name.trim()) e.name = "Name is required";
-    if (!phone.trim()) e.phone = "Phone number is required";
+    if (!name.trim()) e.name = t("nameRequired");
+    if (!phone.trim()) e.phone = t("phoneRequired");
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -75,18 +77,16 @@ export default function ClientFormScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
+      bottomOffset={Platform.OS === "ios" ? 0 : 20}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: insets.bottom + botPad + 24, paddingTop: topPad + 8 },
+      ]}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + botPad + 24, paddingTop: topPad + 8 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
         <View
           style={[
             styles.card,
@@ -95,7 +95,7 @@ export default function ClientFormScreen() {
         >
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Name *
+              {t("name")} *
             </Text>
             <TextInput
               style={[
@@ -111,7 +111,7 @@ export default function ClientFormScreen() {
                 setName(t);
                 if (errors.name) setErrors((e) => ({ ...e, name: undefined }));
               }}
-              placeholder="Client name"
+              placeholder={t("clientNamePlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               returnKeyType="next"
             />
@@ -124,7 +124,7 @@ export default function ClientFormScreen() {
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Phone *
+              {t("phone")} *
             </Text>
             <TextInput
               style={[
@@ -154,7 +154,7 @@ export default function ClientFormScreen() {
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.foreground }]}>
-              Service Type
+              {t("serviceType")}
             </Text>
             <TextInput
               style={[
@@ -167,14 +167,14 @@ export default function ClientFormScreen() {
               ]}
               value={serviceType}
               onChangeText={setServiceType}
-              placeholder="e.g. Wedding Shoot, Portrait Session"
+              placeholder={t("serviceTypePlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               returnKeyType="next"
             />
           </View>
 
           <View style={styles.field}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Notes</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>{t("notes")}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -187,7 +187,7 @@ export default function ClientFormScreen() {
               ]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Any additional notes..."
+              placeholder={t("notesAdditionalPlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               multiline
               numberOfLines={3}
@@ -203,7 +203,7 @@ export default function ClientFormScreen() {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Pipeline Status
+            {t("pipelineStatus")}
           </Text>
           <View style={styles.statusGrid}>
             {STATUSES.map((s) => (
@@ -234,7 +234,7 @@ export default function ClientFormScreen() {
                     },
                   ]}
                 >
-                  {s}
+                  {t(`status${s}` as any)}
                 </Text>
               </Pressable>
             ))}
@@ -252,11 +252,10 @@ export default function ClientFormScreen() {
           ]}
         >
           <Text style={styles.saveBtnText}>
-            {existing ? "Save Changes" : "Add Client"}
+            {existing ? t("saveChanges") : t("addClient")}
           </Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -2,48 +2,53 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Linking,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookingCard } from "@/components/BookingCard";
 import { ClientCard } from "@/components/ClientCard";
 import { EmptyState } from "@/components/EmptyState";
+import { MessageTemplateSheet } from "@/components/MessageTemplateSheet";
 import { QuickAddModal } from "@/components/QuickAddModal";
-import { useData } from "@/context/DataContext";
+import { useData, MessageTemplates } from "@/context/DataContext";
 import { useColors } from "@/hooks/useColors";
+import { formatMessage } from "@/lib/messages";
 
-async function sendWhatsApp(phone: string, name: string, amount: string) {
-  const cleaned = phone.replace(/\D/g, "");
-  const msg = `Hi ${name}, just a reminder that your payment of ${amount} is overdue. Please let me know when you can settle this. Thank you!`;
-  const native = `whatsapp://send?phone=${cleaned}&text=${encodeURIComponent(msg)}`;
-  const web = `https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`;
-  try {
-    const ok = await Linking.canOpenURL(native);
-    await Linking.openURL(ok ? native : web);
-  } catch {
-    await Linking.openURL(web);
-  }
-}
-
-async function sendAllReminders(
-  overdueList: { phone: string; name: string; amount: string }[]
-) {
-  for (const item of overdueList) {
-    await sendWhatsApp(item.phone, item.name, item.amount);
-  }
-}
 
 export default function DashboardScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { clients, bookings, payments, getClientById } = useData();
+  const { clients, bookings, payments, getClientById, templates } = useData();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<{ phone: string; name: string; amount: string } | null>(null);
+
+  const sendWhatsApp = async (phone: string, name: string, amount: string) => {
+    setSelectedReminder({ phone, name, amount });
+  };
+
+  const sendAllReminders = async (overdueList: { phone: string; name: string; amount: string }[]) => {
+    for (const item of overdueList) {
+      await sendWhatsApp(item.phone, item.name, item.amount);
+    }
+  };
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    // Data is local AsyncStorage — just a brief visual refresh
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   const topPad = Platform.OS === "web" ? 67 : 0;
   const botPad = Platform.OS === "web" ? 34 : 0;
@@ -64,6 +69,16 @@ export default function DashboardScreen() {
     [payments, today]
   );
 
+  const totalRevenue = useMemo(
+    () => payments.reduce((sum, p) => sum + (p.paidAmount ?? 0), 0),
+    [payments]
+  );
+
+  function fmtRevenue(n: number): string {
+    if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+    return `$${n.toFixed(0)}`;
+  }
+
   const activeClients = useMemo(
     () =>
       clients.filter((c) =>
@@ -74,37 +89,57 @@ export default function DashboardScreen() {
 
   const greeting = (() => {
     const h = now.getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
+    if (h < 12) return t("goodMorning");
+    if (h < 17) return t("goodAfternoon");
+    return t("goodEvening");
   })();
 
-  const dateStr = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
   const stats = [
     {
-      label: "Clients",
-      value: clients.length,
+      label: t("clients"),
+      value: clients.length.toString(),
       icon: "users" as const,
       color: colors.primary,
     },
     {
-      label: "Bookings",
-      value: bookings.length,
+      label: t("bookings"),
+      value: bookings.length.toString(),
       icon: "calendar" as const,
       color: "#8B5CF6",
     },
     {
-      label: "Overdue",
-      value: overduePayments.length,
+      label: t("revenue"),
+      value: fmtRevenue(totalRevenue),
+      icon: "trending-up" as const,
+      color: "#10B981",
+    },
+    {
+      label: t("overdue"),
+      value: overduePayments.length.toString(),
       icon: "alert-circle" as const,
       color: overduePayments.length > 0 ? "#EF4444" : "#10B981",
     },
   ];
+
+  const handleExport = async () => {
+    try {
+      const data = {
+        exportedAt: new Date().toISOString(),
+        clients,
+        bookings,
+        payments,
+      };
+      const json = JSON.stringify(data, null, 2);
+      await Share.share({
+        message: json,
+        title: "ClientFlow Export",
+      });
+    } catch (e: any) {
+      Alert.alert(t("exportFailed"), e?.message ?? t("couldNotExport"));
+    }
+  };
 
   return (
     <>
@@ -118,6 +153,14 @@ export default function DashboardScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>
@@ -130,6 +173,16 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <View style={styles.headerBtns}>
+            <Pressable
+              onPress={handleExport}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                { backgroundColor: colors.muted, borderColor: colors.border },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Feather name="upload" size={18} color={colors.mutedForeground} />
+            </Pressable>
             <Pressable
               onPress={() => router.push("/security")}
               style={({ pressed }) => [
@@ -187,7 +240,7 @@ export default function DashboardScreen() {
         <View style={styles.section}>
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Today's Bookings
+              {t("todaysBookings")}
             </Text>
             {todayBookings.length > 0 && (
               <View
@@ -215,7 +268,7 @@ export default function DashboardScreen() {
               <Text
                 style={[styles.emptyText, { color: colors.mutedForeground }]}
               >
-                No bookings today
+                {t("noBookingsToday")}
               </Text>
             </View>
           ) : (
@@ -235,7 +288,7 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                Overdue Payments
+                {t("overduePayments")}
               </Text>
               <View style={styles.alertBadge}>
                 <Text style={styles.alertBadgeText}>
@@ -273,7 +326,7 @@ export default function DashboardScreen() {
               >
                 <Feather name="message-circle" size={16} color="#25D366" />
                 <Text style={styles.remindAllText}>
-                  Send reminders to all ({overduePayments.length})
+                  {t("remindAll", { count: overduePayments.length })}
                 </Text>
               </Pressable>
             )}
@@ -291,7 +344,13 @@ export default function DashboardScreen() {
               return (
                 <View
                   key={p.id}
-                  style={[styles.overdueCard]}
+                  style={[
+                    styles.overdueCard,
+                    {
+                      backgroundColor: colors.overdueCard,
+                      borderColor: colors.overdueBorder,
+                    },
+                  ]}
                 >
                   {/* Client info */}
                   <Pressable
@@ -299,9 +358,9 @@ export default function DashboardScreen() {
                     style={styles.overdueTop}
                   >
                     <View>
-                      <Text style={styles.overdueName}>{client.name}</Text>
+                      <Text style={[styles.overdueName, { color: colors.overdueName }]}>{client.name}</Text>
                       <Text style={styles.overdueAmount}>
-                        {balance} · {daysOver}d overdue
+                        {balance} · {t("daysOverdue", { count: daysOver })}
                       </Text>
                     </View>
                     <Feather
@@ -323,7 +382,7 @@ export default function DashboardScreen() {
                   >
                     <Feather name="message-circle" size={15} color="#25D366" />
                     <Text style={styles.remindBtnText}>
-                      Send reminder via WhatsApp
+                      {t("sendReminderWhatsApp")}
                     </Text>
                   </Pressable>
                 </View>
@@ -336,19 +395,19 @@ export default function DashboardScreen() {
         <View style={styles.section}>
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Active Pipeline
+              {t("activePipeline")}
             </Text>
             <Pressable onPress={() => router.push("/(tabs)/clients")}>
               <Text style={[styles.seeAll, { color: colors.primary }]}>
-                See all
+                {t("seeAll")}
               </Text>
             </Pressable>
           </View>
           {activeClients.length === 0 ? (
             <EmptyState
               icon="users"
-              title="No active clients"
-              subtitle="Tap + to add your first client"
+              title={t("noActiveClients")}
+              subtitle={t("addFirstClient")}
             />
           ) : (
             activeClients
@@ -361,6 +420,17 @@ export default function DashboardScreen() {
       <QuickAddModal
         visible={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
+      />
+
+      <MessageTemplateSheet
+        visible={!!selectedReminder}
+        onClose={() => setSelectedReminder(null)}
+        vars={{
+          name: selectedReminder?.name,
+          phone: selectedReminder?.phone ?? "",
+          amount: selectedReminder?.amount,
+        }}
+        suggestPayment={true}
       />
     </>
   );
@@ -466,9 +536,7 @@ const styles = StyleSheet.create({
   },
   overdueCard: {
     borderRadius: 14,
-    backgroundColor: "#FEF2F2",
     borderWidth: 1,
-    borderColor: "#FECACA",
     overflow: "hidden",
   },
   overdueTop: {
@@ -478,7 +546,7 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingBottom: 10,
   },
-  overdueName: { fontSize: 15, fontWeight: "700", color: "#0F172A" },
+  overdueName: { fontSize: 15, fontWeight: "700" },
   overdueAmount: { fontSize: 13, color: "#EF4444", fontWeight: "500", marginTop: 2 },
   remindBtn: {
     flexDirection: "row",

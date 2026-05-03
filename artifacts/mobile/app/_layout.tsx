@@ -13,37 +13,44 @@ import { AppState, AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LockScreen } from "@/components/LockScreen";
 import { SetupPinScreen } from "@/components/SetupPinScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
+import { setupNotificationHandler } from "@/hooks/useNotifications";
+import { initI18n } from "@/lib/i18n";
+
+// Initialize notification handler once at startup
+setupNotificationHandler();
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
+  const { t } = useTranslation();
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="client/form"
-        options={{ title: "Client", presentation: "modal" }}
+        options={{ title: t("client"), presentation: "modal" }}
       />
-      <Stack.Screen name="client/[id]" options={{ title: "Client" }} />
+      <Stack.Screen name="client/[id]" options={{ title: t("client") }} />
       <Stack.Screen
         name="booking/form"
-        options={{ title: "Add Booking", presentation: "modal" }}
+        options={{ title: t("addBooking"), presentation: "modal" }}
       />
       <Stack.Screen
         name="payment/[clientId]"
-        options={{ title: "Payment", presentation: "modal" }}
+        options={{ title: t("payment"), presentation: "modal" }}
       />
       <Stack.Screen
         name="security"
-        options={{ title: "Security", presentation: "modal" }}
+        options={{ title: t("security"), presentation: "modal" }}
       />
     </Stack>
   );
@@ -78,14 +85,19 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [i18nInitialized, setI18nInitialized] = React.useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    initI18n().then(() => setI18nInitialized(true));
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && i18nInitialized) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, i18nInitialized]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !i18nInitialized) return null;
 
   return (
     <SafeAreaProvider>
