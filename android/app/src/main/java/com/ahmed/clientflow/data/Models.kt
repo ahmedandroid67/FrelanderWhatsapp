@@ -22,7 +22,9 @@ data class Booking(
     val date: String = "",
     val time: String = "",
     val location: String = "",
-    val notes: String = ""
+    val notes: String = "",
+    val recurrence: RecurrenceType = RecurrenceType.None,
+    val recurrenceUntil: String = ""
 )
 
 @Serializable
@@ -73,6 +75,9 @@ enum class PaymentStatus { Unpaid, Partial, Paid }
 
 @Serializable
 enum class AppLanguage { English, French, Arabic }
+
+@Serializable
+enum class RecurrenceType { None, Daily, Weekly, Monthly }
 
 fun computePaymentStatus(total: Double, paid: Double): PaymentStatus = when {
     paid <= 0 -> PaymentStatus.Unpaid

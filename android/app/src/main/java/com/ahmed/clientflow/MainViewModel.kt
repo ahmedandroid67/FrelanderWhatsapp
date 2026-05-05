@@ -15,6 +15,7 @@ import com.ahmed.clientflow.data.Invoice
 import com.ahmed.clientflow.data.MessageTemplate
 import com.ahmed.clientflow.data.Payment
 import com.ahmed.clientflow.data.PaymentStatus
+import com.ahmed.clientflow.data.RecurrenceType
 import com.ahmed.clientflow.data.computePaymentStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -143,7 +144,9 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         date: String,
         time: String,
         location: String,
-        notes: String
+        notes: String,
+        recurrence: RecurrenceType,
+        recurrenceUntil: String
     ) = viewModelScope.launch {
         repository.updateState { state ->
             val booking = Booking(
@@ -152,7 +155,9 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
                 date = date.trim(),
                 time = time.trim(),
                 location = location.trim(),
-                notes = notes.trim()
+                notes = notes.trim(),
+                recurrence = recurrence,
+                recurrenceUntil = recurrenceUntil.trim()
             )
             if (bookingId == null) {
                 state.copy(bookings = state.bookings + booking)

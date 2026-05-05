@@ -43,6 +43,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -51,9 +53,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -61,7 +61,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -124,12 +124,18 @@ import com.ahmed.clientflow.data.Invoice
 import com.ahmed.clientflow.data.MessageTemplate
 import com.ahmed.clientflow.data.Payment
 import com.ahmed.clientflow.data.PaymentStatus
+import com.ahmed.clientflow.data.RecurrenceType
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 private val pipeline = ClientStatus.entries
+
+private data class BookingOccurrence(
+    val booking: Booking,
+    val occurrenceDate: String
+)
 
 private const val lottieJson = """
 {"v":"5.7.4","fr":30,"ip":0,"op":120,"w":200,"h":200,"nm":"pulse","ddd":0,"assets":[],"layers":[{"ddd":0,"ind":1,"ty":4,"nm":"Circle","sr":1,"ks":{"o":{"a":0,"k":100},"r":{"a":0,"k":0},"p":{"a":0,"k":[100,100,0]},"a":{"a":0,"k":[0,0,0]},"s":{"a":1,"k":[{"t":0,"s":[40,40,100]},{"t":60,"s":[100,100,100]},{"t":120,"s":[40,40,100]}]}},"shapes":[{"ty":"el","p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[120,120]},"nm":"Ellipse Path 1"},{"ty":"fl","c":{"a":0,"k":[0.145,0.388,0.922,1]},"o":{"a":0,"k":100},"nm":"Fill 1"}],"ip":0,"op":120,"st":0,"bm":0}]}
@@ -146,6 +152,7 @@ fun ClientFlowApp(viewModel: MainViewModel) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val language = uiState.appState.language
 
     LaunchedEffect(uiState.exportPayload) {
         uiState.exportPayload?.let { payload ->
@@ -153,20 +160,20 @@ fun ClientFlowApp(viewModel: MainViewModel) {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, payload)
             }
-            context.startActivity(Intent.createChooser(intent, "Export ClientFlow data"))
+            context.startActivity(Intent.createChooser(intent, tx("export_data", language)))
             viewModel.dismissExport()
         }
     }
 
     when (uiState.authState) {
-        AuthState.Setup -> SetupPinScreen(viewModel)
-        AuthState.Locked -> LockScreen(viewModel, uiState.pinError)
+        AuthState.Setup -> SetupPinScreen(viewModel, language)
+        AuthState.Locked -> LockScreen(viewModel, uiState.pinError, language)
         AuthState.Unlocked -> MainScaffold(viewModel, uiState.appState, snackbarHostState)
     }
 }
 
 @Composable
-private fun SetupPinScreen(viewModel: MainViewModel) {
+private fun SetupPinScreen(viewModel: MainViewModel, language: AppLanguage) {
     var pin by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
     val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(lottieJson))
@@ -179,22 +186,22 @@ private fun SetupPinScreen(viewModel: MainViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             LottieAnimation(composition = composition, iterations = Int.MAX_VALUE, modifier = Modifier.size(180.dp))
-            Text("Secure ClientFlow", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Set 4-digit PIN", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tx("secure_clientflow", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(tx("set_pin", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
             PinField(pin) { if (it.length <= 4) pin = it.filter(Char::isDigit) }
             Spacer(Modifier.height(12.dp))
             PinField(confirm) { if (it.length <= 4) confirm = it.filter(Char::isDigit) }
             Spacer(Modifier.height(20.dp))
             Button(onClick = { viewModel.setupPin(pin) }, enabled = pin.length == 4 && pin == confirm) {
-                Text("Save PIN")
+                Text(tx("save_pin", language))
             }
         }
     }
 }
 
 @Composable
-private fun LockScreen(viewModel: MainViewModel, pinError: Boolean) {
+private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, language: AppLanguage) {
     var pin by rememberSaveable { mutableStateOf("") }
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -206,16 +213,16 @@ private fun LockScreen(viewModel: MainViewModel, pinError: Boolean) {
         ) {
             Icon(Icons.Default.Lock, null, modifier = Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(16.dp))
-            Text("ClientFlow Locked", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Enter PIN to continue", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tx("app_locked", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(tx("enter_pin_continue", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
             PinField(pin) { if (it.length <= 4) pin = it.filter(Char::isDigit) }
             AnimatedVisibility(pinError) {
-                Text("Wrong PIN", color = MaterialTheme.colorScheme.error)
+                Text(tx("wrong_pin", language), color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(20.dp))
             Button(onClick = { viewModel.unlock(pin); pin = "" }, enabled = pin.length == 4) {
-                Text("Unlock")
+                Text(tx("unlock", language))
             }
         }
     }
@@ -345,7 +352,7 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                 )
             }
             composable("security") {
-                SecurityScreen(onBack = { navController.popBackStack() }, onLock = {
+                SecurityScreen(language = state.language, onBack = { navController.popBackStack() }, onLock = {
                     viewModel.lockApp()
                     navController.popBackStack()
                 }, onClearPin = viewModel::clearPin)
@@ -378,9 +385,13 @@ private fun DashboardScreen(
     onExport: () -> Unit
 ) {
     val today = todayKey()
-    val todayBookings = state.bookings.filter { it.date == today }
+    val todayBookings = state.bookings
+        .flatMap { expandBookingOccurrences(it) }
+        .filter { it.occurrenceDate == today }
+        .sortedWith(compareBy({ it.occurrenceDate }, { it.booking.time }))
     val overdue = state.payments.filter { it.status != PaymentStatus.Paid && it.dueDate.isNotBlank() && it.dueDate < today }
     val revenue = state.payments.sumOf { it.paidAmount }
+    val bookingCount = state.bookings.flatMap { expandBookingOccurrences(it) }.size
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -400,35 +411,40 @@ private fun DashboardScreen(
                         Text(formatDateHuman(System.currentTimeMillis()), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                IconButton(onClick = onExport) { Icon(Icons.Default.Send, null) }
+                IconButton(onClick = onExport) { Icon(Icons.AutoMirrored.Filled.Send, null) }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, null) }
             }
         }
         item {
             StatsRow(
                 items = listOf(
-                    "Clients" to state.clients.size.toString(),
-                    "Bookings" to state.bookings.size.toString(),
-                    "Revenue" to "$${revenue.toInt()}",
-                    "Overdue" to overdue.size.toString()
+                    t("clients", state.language) to state.clients.size.toString(),
+                    t("bookings", state.language) to bookingCount.toString(),
+                    t("revenue", state.language) to "$${revenue.toInt()}",
+                    t("overdue", state.language) to overdue.size.toString()
                 )
             )
         }
-        item { SectionTitle("Today's bookings") }
-        if (todayBookings.isEmpty()) item { EmptyCard("No bookings today") }
-        items(todayBookings) { booking ->
-            BookingCard(booking = booking, client = state.clients.find { it.id == booking.clientId }, onClick = { onOpenClient(booking.clientId) })
+        item { SectionTitle(t("todays_bookings", state.language)) }
+        if (todayBookings.isEmpty()) item { EmptyCard(t("no_bookings_today", state.language)) }
+        items(todayBookings) { occurrence ->
+            BookingCard(
+                booking = occurrence.booking.copy(date = occurrence.occurrenceDate),
+                client = state.clients.find { it.id == occurrence.booking.clientId },
+                language = state.language,
+                onClick = { onOpenClient(occurrence.booking.clientId) }
+            )
         }
         if (overdue.isNotEmpty()) {
-            item { SectionTitle("Overdue payments") }
+            item { SectionTitle(t("overdue_payments", state.language)) }
             items(overdue) { payment ->
                 val client = state.clients.find { it.id == payment.clientId } ?: return@items
-                PaymentCard(client = client, payment = payment, onClick = { onOpenClient(client.id) })
+                PaymentCard(client = client, payment = payment, language = state.language, onClick = { onOpenClient(client.id) })
             }
         }
-        item { SectionTitle("Active pipeline") }
+        item { SectionTitle(t("active_pipeline", state.language)) }
         items(state.clients.filter { it.status in listOf(ClientStatus.Lead, ClientStatus.Quoted, ClientStatus.Booked) }.take(5)) { client ->
-            ClientCard(client = client, payment = state.payments.find { it.clientId == client.id }, onClick = { onOpenClient(client.id) })
+            ClientCard(client = client, payment = state.payments.find { it.clientId == client.id }, language = state.language, onClick = { onOpenClient(client.id) })
         }
     }
 }
@@ -484,6 +500,7 @@ private fun ClientsScreen(
     onAddClient: () -> Unit,
     onUpgrade: () -> Unit
 ) {
+    val language = state.language
     var search by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("All") }
     val filtered = state.clients.filter {
@@ -493,23 +510,23 @@ private fun ClientsScreen(
     }.sortedByDescending { it.createdAt }
 
     Column(Modifier.fillMaxSize()) {
-        SearchBar(search = search, onSearch = { search = it })
+        SearchBar(search = search, onSearch = { search = it }, placeholder = tx("search_clients", language))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 StatusFilters(selected = filter, onSelect = { filter = it })
             }
-            if (filtered.isEmpty()) item { EmptyCard("No clients yet") }
+            if (filtered.isEmpty()) item { EmptyCard(tx("no_clients_yet", language)) }
             items(filtered) { client ->
-                ClientCard(client = client, payment = state.payments.find { it.clientId == client.id }, onClick = { onOpenClient(client.id) })
+                ClientCard(client = client, payment = state.payments.find { it.clientId == client.id }, language = language, onClick = { onOpenClient(client.id) })
             }
             item {
                 if (!canAddMore) {
                     OutlinedButton(onClick = onUpgrade, modifier = Modifier.fillMaxWidth()) {
-                        Text("Upgrade to add more clients")
+                        Text(tx("upgrade_add_clients", language))
                     }
                 } else {
                     OutlinedButton(onClick = onAddClient, modifier = Modifier.fillMaxWidth()) {
-                        Text("Add client")
+                        Text(tx("add_client", language))
                     }
                 }
             }
@@ -524,15 +541,17 @@ private fun BookingsScreen(
     onEditBooking: (String, String) -> Unit,
     onDeleteBooking: (String) -> Unit
 ) {
+    val language = state.language
     var search by rememberSaveable { mutableStateOf("") }
     var monthOffset by rememberSaveable { mutableStateOf(0) }
     var selectedDate by rememberSaveable { mutableStateOf(todayKey()) }
     var previewBookingId by rememberSaveable { mutableStateOf<String?>(null) }
     var lastMonthOffset by rememberSaveable { mutableStateOf(0) }
-    val bookings = state.bookings.filter {
-        val client = state.clients.find { c -> c.id == it.clientId }
-        search.isBlank() || it.date.contains(search, true) || it.location.contains(search, true) || (client?.name?.contains(search, true) == true)
-    }.sortedBy { it.date }
+    val occurrences = state.bookings.flatMap { expandBookingOccurrences(it) }
+    val bookings = occurrences.filter {
+        val client = state.clients.find { c -> c.id == it.booking.clientId }
+        search.isBlank() || it.occurrenceDate.contains(search, true) || it.booking.location.contains(search, true) || (client?.name?.contains(search, true) == true)
+    }.sortedBy { it.occurrenceDate }
     val monthCalendar = remember(monthOffset) {
         Calendar.getInstance().apply {
             set(Calendar.DAY_OF_MONTH, 1)
@@ -542,8 +561,8 @@ private fun BookingsScreen(
     val monthLabel = SimpleDateFormat("MMMM yyyy", Locale.US).format(monthCalendar.time)
     val daysInMonth = monthCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
     val leadingBlanks = ((monthCalendar.get(Calendar.DAY_OF_WEEK) + 5) % 7)
-    val dateBookingCount = bookings.groupingBy { it.date }.eachCount()
-    val selectedDayBookings = bookings.filter { it.date == selectedDate }
+    val dateBookingCount = bookings.groupingBy { it.occurrenceDate }.eachCount()
+    val selectedDayBookings = bookings.filter { it.occurrenceDate == selectedDate }
     val monthPrefix = SimpleDateFormat("yyyy-MM", Locale.US).format(monthCalendar.time)
     val previewBooking = state.bookings.find { it.id == previewBookingId }
 
@@ -558,7 +577,7 @@ private fun BookingsScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        SearchBar(search = search, onSearch = { search = it }, placeholder = "Search bookings")
+        SearchBar(search = search, onSearch = { search = it }, placeholder = tx("search_bookings", language))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Card(
@@ -630,13 +649,18 @@ private fun BookingsScreen(
                 }
             }
             item {
-                SectionTitle("Appointments on $selectedDate (${selectedDayBookings.size})")
+                SectionTitle("${tx("appointments_on", language)} $selectedDate (${selectedDayBookings.size})")
             }
             if (selectedDayBookings.isEmpty()) {
-                item { EmptyCard("No appointments on this day") }
+                item { EmptyCard(tx("no_appointments_day", language)) }
             } else {
                 items(selectedDayBookings) { booking ->
-                    DayBookingCard(booking = booking, client = state.clients.find { it.id == booking.clientId }, onClick = { previewBookingId = booking.id })
+                    DayBookingCard(
+                        booking = booking.booking.copy(date = booking.occurrenceDate),
+                        client = state.clients.find { it.id == booking.booking.clientId },
+                        language = language,
+                        onClick = { previewBookingId = booking.booking.id }
+                    )
                 }
             }
         }
@@ -646,6 +670,7 @@ private fun BookingsScreen(
         BookingDetailSheet(
             booking = previewBooking,
             client = state.clients.find { it.id == previewBooking.clientId },
+            language = language,
             onDismiss = { previewBookingId = null },
             onOpenClient = {
                 previewBookingId = null
@@ -778,7 +803,7 @@ private fun CalendarDayCell(
 }
 
 @Composable
-private fun DayBookingCard(booking: Booking, client: Client?, onClick: () -> Unit) {
+private fun DayBookingCard(booking: Booking, client: Client?, language: AppLanguage, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -789,7 +814,7 @@ private fun DayBookingCard(booking: Booking, client: Client?, onClick: () -> Uni
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(client?.name ?: "Unknown client", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(client?.name ?: tx("unknown_client", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     if (!client?.phone.isNullOrBlank()) {
                         Text(client?.phone.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -804,12 +829,13 @@ private fun DayBookingCard(booking: Booking, client: Client?, onClick: () -> Uni
                 }
             }
             if (booking.location.isNotBlank()) {
-                Text("Location: ${booking.location}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${tx("location", language)}: ${booking.location}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (booking.notes.isNotBlank()) {
                 Text(booking.notes)
             }
-            Text("Tap for quick details", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            RecurrenceBadge(booking = booking, language = language)
+            Text(tx("tap_quick_details", language), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -819,33 +845,50 @@ private fun DayBookingCard(booking: Booking, client: Client?, onClick: () -> Uni
 private fun BookingDetailSheet(
     booking: Booking,
     client: Client?,
+    language: AppLanguage,
     onDismiss: () -> Unit,
     onOpenClient: () -> Unit,
     onEditBooking: () -> Unit,
     onDeleteBooking: () -> Unit
 ) {
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(client?.name ?: "Appointment", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            if (!client?.phone.isNullOrBlank()) Text("Phone: ${client?.phone}")
-            if (!client?.serviceType.isNullOrBlank()) Text("Service: ${client?.serviceType}")
-            if (booking.date.isNotBlank()) Text("Date: ${booking.date}")
-            if (booking.time.isNotBlank()) Text("Time: ${booking.time}")
-            if (booking.location.isNotBlank()) Text("Location: ${booking.location}")
-            if (booking.notes.isNotBlank()) Text("Notes: ${booking.notes}")
+            Text(client?.name ?: tx("appointment", language), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            if (!client?.phone.isNullOrBlank()) Text("${tx("phone", language)}: ${client?.phone}")
+            if (!client?.serviceType.isNullOrBlank()) Text("${tx("service_type", language)}: ${client?.serviceType}")
+            if (booking.date.isNotBlank()) Text("${tx("date", language)}: ${booking.date}")
+            if (booking.time.isNotBlank()) Text("${tx("time", language)}: ${booking.time}")
+            if (booking.location.isNotBlank()) Text("${tx("location", language)}: ${booking.location}")
+            if (booking.notes.isNotBlank()) Text("${tx("notes", language)}: ${booking.notes}")
+            RecurrenceBadge(booking = booking, language = language)
             Button(onClick = onOpenClient, modifier = Modifier.fillMaxWidth()) {
-                Text("Open client")
+                Text(tx("open_client", language))
             }
             OutlinedButton(onClick = onEditBooking, modifier = Modifier.fillMaxWidth()) {
-                Text("Edit booking")
+                Text(tx("edit_booking", language))
             }
-            OutlinedButton(onClick = onDeleteBooking, modifier = Modifier.fillMaxWidth()) {
-                Text("Delete booking")
+            OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(tx("delete_booking", language))
             }
             OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Close")
+                Text(tx("close", language))
             }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDeleteBooking()
+                }) { Text(tx("delete", language)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(tx("cancel", language)) } },
+            title = { Text(tx("delete_booking_confirm_title", language)) },
+            text = { Text(tx("delete_booking_confirm_text", language)) }
+        )
     }
 }
 
@@ -857,17 +900,18 @@ private fun ClientFormScreen(
     onSave: (String?, String, String, String, String, ClientStatus) -> Unit
 ) {
     val existing = state.clients.find { it.id == clientId }
+    val language = state.language
     var name by rememberSaveable { mutableStateOf(existing?.name.orEmpty()) }
     var phone by rememberSaveable { mutableStateOf(existing?.phone.orEmpty()) }
     var serviceType by rememberSaveable { mutableStateOf(existing?.serviceType.orEmpty()) }
     var notes by rememberSaveable { mutableStateOf(existing?.notes.orEmpty()) }
     var status by rememberSaveable { mutableStateOf(existing?.status ?: ClientStatus.Lead) }
-    FormScaffold(title = if (existing == null) "Add Client" else "Edit Client", onBack = onBack) {
+    FormScaffold(title = if (existing == null) tx("add_client_title", language) else tx("edit_client_title", language), onBack = onBack) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(phone, { phone = it }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-            OutlinedTextField(serviceType, { serviceType = it }, label = { Text("Service type") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            OutlinedTextField(name, { name = it }, label = { Text(tx("name", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(phone, { phone = it }, label = { Text(tx("phone", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+            OutlinedTextField(serviceType, { serviceType = it }, label = { Text(tx("service_type", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text(tx("notes", language)) }, modifier = Modifier.fillMaxWidth(), minLines = 3)
             StatusDropdown(status = status, onSelect = { status = it })
             Button(
                 onClick = {
@@ -876,7 +920,7 @@ private fun ClientFormScreen(
                 },
                 enabled = name.isNotBlank() && phone.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (existing == null) "Add client" else "Save changes") }
+            ) { Text(if (existing == null) tx("add_client", language) else tx("save_changes", language)) }
         }
     }
 }
@@ -887,23 +931,30 @@ private fun BookingFormScreen(
     clientId: String,
     bookingId: String?,
     onBack: () -> Unit,
-    onSave: (String?, String, String, String, String, String) -> Unit
+    onSave: (String?, String, String, String, String, String, RecurrenceType, String) -> Unit
 ) {
     val booking = state.bookings.find { it.id == bookingId }
+    val language = state.language
     var date by rememberSaveable { mutableStateOf(booking?.date.orEmpty()) }
     var time by rememberSaveable { mutableStateOf(booking?.time.orEmpty()) }
     var location by rememberSaveable { mutableStateOf(booking?.location.orEmpty()) }
     var notes by rememberSaveable { mutableStateOf(booking?.notes.orEmpty()) }
-    FormScaffold(title = "Booking", onBack = onBack) {
+    var recurrence by rememberSaveable { mutableStateOf(booking?.recurrence ?: RecurrenceType.None) }
+    var recurrenceUntil by rememberSaveable { mutableStateOf(booking?.recurrenceUntil.orEmpty()) }
+    FormScaffold(title = tx("booking", language), onBack = onBack) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            DatePickerField(value = date, label = "Date", onDateSelected = { date = it })
-            TimePickerField(value = time, label = "Time", onTimeSelected = { time = it })
-            OutlinedTextField(location, { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            DatePickerField(value = date, label = tx("date", language), onDateSelected = { date = it })
+            TimePickerField(value = time, label = tx("time", language), onTimeSelected = { time = it })
+            OutlinedTextField(location, { location = it }, label = { Text(tx("location", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(notes, { notes = it }, label = { Text(tx("notes", language)) }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            RecurrenceDropdown(recurrence = recurrence, language = language, onSelect = { recurrence = it })
+            if (recurrence != RecurrenceType.None) {
+                DatePickerField(value = recurrenceUntil, label = t("repeat_until", language), onDateSelected = { recurrenceUntil = it })
+            }
             Button(onClick = {
-                onSave(bookingId, clientId, date, time, location, notes)
+                onSave(bookingId, clientId, date, time, location, notes, recurrence, recurrenceUntil)
                 onBack()
-            }, modifier = Modifier.fillMaxWidth()) { Text("Save booking") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(tx("save_booking", language)) }
         }
     }
 }
@@ -917,20 +968,21 @@ private fun PaymentScreen(
 ) {
     val client = state.clients.find { it.id == clientId }
     val payment = state.payments.find { it.clientId == clientId }
+    val language = state.language
     var total by rememberSaveable { mutableStateOf(payment?.totalAmount?.toString().orEmpty()) }
     var paid by rememberSaveable { mutableStateOf(payment?.paidAmount?.toString().orEmpty()) }
     var dueDate by rememberSaveable { mutableStateOf(payment?.dueDate.orEmpty()) }
-    FormScaffold(title = "Payment", onBack = onBack) {
+    FormScaffold(title = tx("payment", language), onBack = onBack) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Payment for ${client?.name.orEmpty()}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(total, { total = it }, label = { Text("Total amount") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-            OutlinedTextField(paid, { paid = it }, label = { Text("Paid amount") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-            DatePickerField(value = dueDate, label = "Due date", onDateSelected = { dueDate = it })
-            SummaryCard(total.toDoubleOrNull() ?: 0.0, paid.toDoubleOrNull() ?: 0.0, dueDate)
+            Text("${tx("payment_for", language)} ${client?.name.orEmpty()}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(total, { total = it }, label = { Text(tx("total_amount", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            OutlinedTextField(paid, { paid = it }, label = { Text(tx("paid_amount", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            DatePickerField(value = dueDate, label = tx("due_date", language), onDateSelected = { dueDate = it })
+            SummaryCard(total.toDoubleOrNull() ?: 0.0, paid.toDoubleOrNull() ?: 0.0, dueDate, language)
             Button(onClick = {
                 onSave(clientId, total.toDoubleOrNull() ?: 0.0, paid.toDoubleOrNull() ?: 0.0, dueDate)
                 onBack()
-            }, modifier = Modifier.fillMaxWidth()) { Text("Save payment") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(tx("save_payment", language)) }
         }
     }
 }
@@ -952,7 +1004,11 @@ private fun ClientDetailScreen(
 ) {
     val context = LocalContext.current
     val client = state.clients.find { it.id == clientId } ?: return
-    val bookings = state.bookings.filter { it.clientId == clientId }.sortedBy { it.date }
+    val language = state.language
+    val bookings = state.bookings
+        .filter { it.clientId == clientId }
+        .flatMap { expandBookingOccurrences(it) }
+        .sortedWith(compareBy({ it.occurrenceDate }, { it.booking.time }))
     val payment = state.payments.find { it.clientId == clientId }
     val invoices = state.invoices.filter { it.clientId == clientId }
     var showTemplates by rememberSaveable { mutableStateOf(false) }
@@ -973,14 +1029,14 @@ private fun ClientDetailScreen(
                         if (client.serviceType.isNotBlank()) Text(client.serviceType, color = MaterialTheme.colorScheme.primary)
                         if (client.notes.isNotBlank()) Text(client.notes)
                         Button(onClick = { showTemplates = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Message, null)
+                            Icon(Icons.AutoMirrored.Filled.Message, null)
                             Spacer(Modifier.size(8.dp))
-                            Text("Send WhatsApp")
+                            Text(tx("send_whatsapp", language))
                         }
                     }
                 }
             }
-            item { SectionTitle("Pipeline") }
+            item { SectionTitle(tx("pipeline", language)) }
             item {
                 PipelineRow(current = client.status, onSelect = onStatusChange)
             }
@@ -988,16 +1044,16 @@ private fun ClientDetailScreen(
                 Card {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Payment", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            Text(tx("payment", language), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                             IconButton(onClick = onOpenPayment) { Icon(Icons.Default.Edit, null) }
                         }
                         if (payment == null) {
-                            OutlinedButton(onClick = onOpenPayment, modifier = Modifier.fillMaxWidth()) { Text("Add payment details") }
+                            OutlinedButton(onClick = onOpenPayment, modifier = Modifier.fillMaxWidth()) { Text(tx("add_payment_details", language)) }
                         } else {
-                            Text("Total: $${payment.totalAmount}")
-                            Text("Paid: $${payment.paidAmount}")
-                            Text("Balance: $${payment.totalAmount - payment.paidAmount}")
-                            Text("Due: ${payment.dueDate.ifBlank { "-" }}")
+                            Text("${tx("total", language)}: $${payment.totalAmount}")
+                            Text("${tx("paid", language)}: $${payment.paidAmount}")
+                            Text("${tx("balance", language)}: $${payment.totalAmount - payment.paidAmount}")
+                            Text("${tx("due", language)}: ${payment.dueDate.ifBlank { "-" }}")
                             AssistChip(onClick = {}, label = { Text(payment.status.name) })
                         }
                     }
@@ -1007,17 +1063,18 @@ private fun ClientDetailScreen(
                 Card {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Bookings", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            Text(tx("bookings", language), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                             IconButton(onClick = { onOpenBooking(null) }) { Icon(Icons.Default.Add, null) }
                         }
                         if (bookings.isEmpty()) {
-                            OutlinedButton(onClick = { onOpenBooking(null) }, modifier = Modifier.fillMaxWidth()) { Text("Add booking") }
+                            OutlinedButton(onClick = { onOpenBooking(null) }, modifier = Modifier.fillMaxWidth()) { Text(tx("add_booking", language)) }
                         } else {
-                            bookings.forEach { booking ->
+                            bookings.forEach { occurrence ->
                                 BookingRowCompact(
-                                    booking = booking,
-                                    onEdit = { onOpenBooking(booking.id) },
-                                    onDelete = { onDeleteBooking(booking.id) }
+                                    booking = occurrence.booking.copy(date = occurrence.occurrenceDate),
+                                    language = language,
+                                    onEdit = { onOpenBooking(occurrence.booking.id) },
+                                    onDelete = { onDeleteBooking(occurrence.booking.id) }
                                 )
                             }
                         }
@@ -1028,7 +1085,7 @@ private fun ClientDetailScreen(
                 item {
                     Card {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Invoices", fontWeight = FontWeight.SemiBold)
+                            Text(tx("invoices", language), fontWeight = FontWeight.SemiBold)
                             invoices.forEach { invoice ->
                                 InvoiceRow(invoice)
                             }
@@ -1040,20 +1097,20 @@ private fun ClientDetailScreen(
                 Button(
                     onClick = {
                         if (payment != null) {
-                            onGenerateInvoice(client.id, payment.totalAmount, client.serviceType.ifBlank { "Service" })
-                            Toast.makeText(context, "Invoice created", Toast.LENGTH_SHORT).show()
+                            onGenerateInvoice(client.id, payment.totalAmount, client.serviceType.ifBlank { tx("service", language) })
+                            Toast.makeText(context, tx("invoice_created", language), Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(context, "Add payment first", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, tx("add_payment_first", language), Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Generate invoice") }
+                ) { Text(tx("generate_invoice", language)) }
             }
             item {
                 OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Delete, null)
                     Spacer(Modifier.size(8.dp))
-                    Text("Delete client")
+                    Text(tx("delete_client", language))
                 }
             }
         }
@@ -1063,7 +1120,7 @@ private fun ClientDetailScreen(
         MessageTemplateSheet(
             templates = state.templates,
             client = client,
-            nextBooking = bookings.firstOrNull(),
+            nextBooking = bookings.firstOrNull()?.let { it.booking.copy(date = it.occurrenceDate) },
             payment = payment,
             onDismiss = { showTemplates = false },
             onSaveTemplate = onSaveTemplate,
@@ -1074,24 +1131,24 @@ private fun ClientDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            confirmButton = { TextButton(onClick = onDeleteClient) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-            title = { Text("Delete client?") },
+            confirmButton = { TextButton(onClick = onDeleteClient) { Text(tx("delete", language)) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(tx("cancel", language)) } },
+            title = { Text(tx("delete_client_confirm_title", language)) },
             text = { Text(client.name) }
         )
     }
 }
 
 @Composable
-private fun SecurityScreen(onBack: () -> Unit, onLock: () -> Unit, onClearPin: () -> Unit) {
-    FormScaffold(title = "Security", onBack = onBack) {
+private fun SecurityScreen(language: AppLanguage, onBack: () -> Unit, onLock: () -> Unit, onClearPin: () -> Unit) {
+    FormScaffold(title = tx("security", language), onBack = onBack) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("App security", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("PIN lock enabled. Data stays local on device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = onLock, modifier = Modifier.fillMaxWidth()) { Text("Lock app now") }
-                    OutlinedButton(onClick = onClearPin, modifier = Modifier.fillMaxWidth()) { Text("Reset PIN") }
+                    Text(tx("app_security", language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(tx("security_desc", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = onLock, modifier = Modifier.fillMaxWidth()) { Text(tx("lock_now", language)) }
+                    OutlinedButton(onClick = onClearPin, modifier = Modifier.fillMaxWidth()) { Text(tx("reset_pin", language)) }
                 }
             }
         }
@@ -1101,22 +1158,23 @@ private fun SecurityScreen(onBack: () -> Unit, onLock: () -> Unit, onClearPin: (
 @Composable
 private fun LicenseScreen(state: AppState, onBack: () -> Unit, onActivate: (String, (Boolean) -> Unit) -> Unit) {
     val context = LocalContext.current
+    val language = state.language
     var code by rememberSaveable { mutableStateOf("") }
-    FormScaffold(title = "Upgrade", onBack = onBack) {
+    FormScaffold(title = tx("upgrade", language), onBack = onBack) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (state.isPro) "Pro active" else "Free plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Free limit: ${state.freeClientLimit} client", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (state.isPro) tr("pro_active", language) else tr("free_plan", language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("${tx("free_limit", language)}: ${state.freeClientLimit}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            OutlinedTextField(code, { code = it }, label = { Text("Activation code") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(code, { code = it }, label = { Text(tx("activation_code", language)) }, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 onActivate(code) { ok ->
-                    Toast.makeText(context, if (ok) "Pro activated" else "Invalid code", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (ok) tx("pro_activated", language) else tx("invalid_code", language), Toast.LENGTH_SHORT).show()
                     if (ok) onBack()
                 }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Activate") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(tx("activate", language)) }
         }
     }
 }
@@ -1220,6 +1278,33 @@ private fun TimePickerField(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecurrenceDropdown(recurrence: RecurrenceType, language: AppLanguage, onSelect: (RecurrenceType) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = recurrenceLabel(recurrence, language),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(t("recurrence", language)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            RecurrenceType.entries.forEach {
+                DropdownMenuItem(
+                    text = { Text(recurrenceLabel(it, language)) },
+                    onClick = {
+                        onSelect(it)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StatusFilters(selected: String, onSelect: (String) -> Unit) {
@@ -1273,7 +1358,7 @@ private fun StatsRow(items: List<Pair<String, String>>) {
 }
 
 @Composable
-private fun ClientCard(client: Client, payment: Payment?, onClick: () -> Unit) {
+private fun ClientCard(client: Client, payment: Payment?, language: AppLanguage, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1282,7 +1367,7 @@ private fun ClientCard(client: Client, payment: Payment?, onClick: () -> Unit) {
             }
             Text(client.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (client.serviceType.isNotBlank()) Text(client.serviceType, color = MaterialTheme.colorScheme.primary)
-            payment?.let { Text("Payment: ${it.status.name}", color = when (it.status) {
+            payment?.let { Text("${tx("payment", language)}: ${paymentStatusLabel(it.status, language)}", color = when (it.status) {
                 PaymentStatus.Paid -> Color(0xFF15803D)
                 PaymentStatus.Partial -> Color(0xFFD97706)
                 PaymentStatus.Unpaid -> MaterialTheme.colorScheme.error
@@ -1292,37 +1377,38 @@ private fun ClientCard(client: Client, payment: Payment?, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BookingCard(booking: Booking, client: Client?, onClick: () -> Unit) {
+private fun BookingCard(booking: Booking, client: Client?, language: AppLanguage, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(client?.name ?: "Unknown client", fontWeight = FontWeight.Bold)
+            Text(client?.name ?: tx("unknown_client", language), fontWeight = FontWeight.Bold)
             Text("${booking.date} ${booking.time}".trim(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (booking.location.isNotBlank()) Text(booking.location)
+            RecurrenceBadge(booking = booking, language = language)
+            if (booking.location.isNotBlank()) Text("${tx("location", language)}: ${booking.location}")
             if (booking.notes.isNotBlank()) Text(booking.notes, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun PaymentCard(client: Client, payment: Payment, onClick: () -> Unit) {
+private fun PaymentCard(client: Client, payment: Payment, language: AppLanguage, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2))) {
         Column(Modifier.padding(16.dp)) {
             Text(client.name, fontWeight = FontWeight.Bold)
-            Text("Balance: $${payment.totalAmount - payment.paidAmount}", color = MaterialTheme.colorScheme.error)
-            Text("Due ${payment.dueDate}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${tx("balance", language)}: $${payment.totalAmount - payment.paidAmount}", color = MaterialTheme.colorScheme.error)
+            Text("${tx("due", language)} ${payment.dueDate}", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun SummaryCard(total: Double, paid: Double, dueDate: String) {
+private fun SummaryCard(total: Double, paid: Double, dueDate: String, language: AppLanguage) {
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Summary", fontWeight = FontWeight.Bold)
-            Text("Total: $${"%.2f".format(total)}")
-            Text("Paid: $${"%.2f".format(paid)}")
-            Text("Balance: $${"%.2f".format(total - paid)}")
-            if (dueDate.isNotBlank()) Text("Due: $dueDate")
+            Text(tx("summary", language), fontWeight = FontWeight.Bold)
+            Text("${tx("total", language)}: $${"%.2f".format(total)}")
+            Text("${tx("paid", language)}: $${"%.2f".format(paid)}")
+            Text("${tx("balance", language)}: $${"%.2f".format(total - paid)}")
+            if (dueDate.isNotBlank()) Text("${tx("due", language)}: $dueDate")
             AssistChip(onClick = {}, label = { Text(paymentStatusText(total, paid)) })
         }
     }
@@ -1338,16 +1424,17 @@ private fun PipelineRow(current: ClientStatus, onSelect: (ClientStatus) -> Unit)
 }
 
 @Composable
-private fun BookingRowCompact(booking: Booking, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun BookingRowCompact(booking: Booking, language: AppLanguage, onEdit: () -> Unit, onDelete: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${booking.date} ${booking.time}".trim(), modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
             IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, null) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, null) }
         }
+        RecurrenceBadge(booking = booking, language = language)
         if (booking.location.isNotBlank()) Text(booking.location)
         if (booking.notes.isNotBlank()) Text(booking.notes, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Divider()
+        HorizontalDivider()
     }
 }
 
@@ -1393,7 +1480,7 @@ private fun PinField(value: String, onValueChange: (String) -> Unit) {
         onValueChange = onValueChange,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
         visualTransformation = PasswordVisualTransformation(),
-        label = { Text("PIN") },
+        label = { Text(tx("pin", AppLanguage.English)) },
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -1418,7 +1505,7 @@ private fun MessageTemplateSheet(
     val amount = payment?.let { "$${"%.2f".format(it.totalAmount - it.paidAmount)}" }.orEmpty()
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(16.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("WhatsApp templates", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(tx("whatsapp_templates", AppLanguage.English), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             templates.forEach { template ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1431,14 +1518,14 @@ private fun MessageTemplateSheet(
                                     client.phone,
                                     formatMessage(template.content, client, amount, nextBooking?.date.orEmpty())
                                 )
-                            }, modifier = Modifier.weight(1f)) { Text("Send") }
+                            }, modifier = Modifier.weight(1f)) { Text(tx("send", AppLanguage.English)) }
                             OutlinedButton(onClick = {
                                 editTarget = template
                                 editingId = template.id
                                 name = template.name
                                 content = template.content
                                 emoji = template.emoji
-                            }, modifier = Modifier.weight(1f)) { Text("Edit") }
+                            }, modifier = Modifier.weight(1f)) { Text(tx("edit", AppLanguage.English)) }
                             if (!template.isDefault) {
                                 IconButton(onClick = { onDeleteTemplate(template.id) }) { Icon(Icons.Default.Delete, null) }
                             }
@@ -1452,7 +1539,7 @@ private fun MessageTemplateSheet(
                 name = ""
                 content = ""
                 emoji = "\uD83D\uDCAC"
-            }, modifier = Modifier.fillMaxWidth()) { Text("New template") }
+            }, modifier = Modifier.fillMaxWidth()) { Text(tx("new_template", AppLanguage.English)) }
         }
     }
 
@@ -1464,15 +1551,15 @@ private fun MessageTemplateSheet(
                     onSaveTemplate(editingId, name, content, emoji)
                     editTarget = null
                     editingId = null
-                }) { Text("Save") }
+                }) { Text(tx("save", AppLanguage.English)) }
             },
-            dismissButton = { TextButton(onClick = { editTarget = null; editingId = null }) { Text("Cancel") } },
-            title = { Text("Template") },
+            dismissButton = { TextButton(onClick = { editTarget = null; editingId = null }) { Text(tx("cancel", AppLanguage.English)) } },
+            title = { Text(tx("template", AppLanguage.English)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it }, label = { Text("Name") })
-                    OutlinedTextField(emoji, { emoji = it }, label = { Text("Emoji") })
-                    OutlinedTextField(content, { content = it }, label = { Text("Message") }, minLines = 4)
+                    OutlinedTextField(name, { name = it }, label = { Text(tx("name", AppLanguage.English)) })
+                    OutlinedTextField(emoji, { emoji = it }, label = { Text(tx("emoji", AppLanguage.English)) })
+                    OutlinedTextField(content, { content = it }, label = { Text(tx("message", AppLanguage.English)) }, minLines = 4)
                 }
             }
         )
@@ -1499,9 +1586,82 @@ private fun paymentStatusText(total: Double, paid: Double): String = when {
     else -> "Partial"
 }
 
+private fun paymentStatusLabel(status: PaymentStatus, language: AppLanguage): String = when (status) {
+    PaymentStatus.Unpaid -> t("unpaid", language)
+    PaymentStatus.Partial -> t("partial", language)
+    PaymentStatus.Paid -> t("paid_status", language)
+}
+
+private fun recurrenceLabel(recurrence: RecurrenceType, language: AppLanguage): String = when (recurrence) {
+    RecurrenceType.None -> t("recurrence_none", language)
+    RecurrenceType.Daily -> t("recurrence_daily", language)
+    RecurrenceType.Weekly -> t("recurrence_weekly", language)
+    RecurrenceType.Monthly -> t("recurrence_monthly", language)
+}
+
+private fun recurrenceSummary(booking: Booking, language: AppLanguage): String? {
+    if (booking.recurrence == RecurrenceType.None) return null
+    val base = when (booking.recurrence) {
+        RecurrenceType.None -> return null
+        RecurrenceType.Daily -> t("repeats_daily", language)
+        RecurrenceType.Weekly -> t("repeats_weekly", language)
+        RecurrenceType.Monthly -> t("repeats_monthly", language)
+    }
+    return if (booking.recurrenceUntil.isNotBlank()) {
+        "$base ${t("until", language)} ${booking.recurrenceUntil}"
+    } else {
+        base
+    }
+}
+
+@Composable
+private fun RecurrenceBadge(booking: Booking, language: AppLanguage) {
+    val summary = recurrenceSummary(booking, language) ?: return
+    AssistChip(
+        onClick = {},
+        label = { Text(summary) }
+    )
+}
+
 private fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
 private fun formatDateHuman(millis: Long): String = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(Date(millis))
+
+private fun expandBookingOccurrences(
+    booking: Booking,
+    horizonMonths: Int = 12,
+    maxOccurrences: Int = 120
+): List<BookingOccurrence> {
+    if (booking.date.isBlank()) return emptyList()
+    val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val startDate = runCatching { fmt.parse(booking.date) }.getOrNull() ?: return emptyList()
+    val startCal = Calendar.getInstance().apply { time = startDate }
+    val endCal = Calendar.getInstance().apply {
+        time = startDate
+        add(Calendar.MONTH, horizonMonths)
+    }
+    val untilCal = booking.recurrenceUntil.takeIf { it.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) }?.let {
+        Calendar.getInstance().apply { time = fmt.parse(it)!! }
+    }
+
+    val occurrences = mutableListOf<BookingOccurrence>()
+    val cursor = Calendar.getInstance().apply { time = startDate }
+
+    while (occurrences.size < maxOccurrences && !cursor.after(endCal)) {
+        val currentDate = fmt.format(cursor.time)
+        occurrences += BookingOccurrence(booking, currentDate)
+        if (booking.recurrence == RecurrenceType.None) break
+        when (booking.recurrence) {
+            RecurrenceType.None -> break
+            RecurrenceType.Daily -> cursor.add(Calendar.DAY_OF_MONTH, 1)
+            RecurrenceType.Weekly -> cursor.add(Calendar.DAY_OF_MONTH, 7)
+            RecurrenceType.Monthly -> cursor.add(Calendar.MONTH, 1)
+        }
+        if (untilCal != null && cursor.after(untilCal)) break
+    }
+
+    return occurrences
+}
 
 private fun languageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.English -> "English"
@@ -1554,6 +1714,514 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Manage plan"
         AppLanguage.French -> "Gerer forfait"
         AppLanguage.Arabic -> "إدارة الخطة"
+    }
+    else -> key
+}
+
+private fun t(key: String, language: AppLanguage): String = when (key) {
+    "clients" -> when (language) {
+        AppLanguage.English -> "Clients"
+        AppLanguage.French -> "Clients"
+        AppLanguage.Arabic -> "العملاء"
+    }
+    "revenue" -> when (language) {
+        AppLanguage.English -> "Revenue"
+        AppLanguage.French -> "Revenus"
+        AppLanguage.Arabic -> "الايرادات"
+    }
+    "overdue" -> when (language) {
+        AppLanguage.English -> "Overdue"
+        AppLanguage.French -> "En retard"
+        AppLanguage.Arabic -> "متأخر"
+    }
+    "todays_bookings" -> when (language) {
+        AppLanguage.English -> "Today's bookings"
+        AppLanguage.French -> "Reservations du jour"
+        AppLanguage.Arabic -> "مواعيد اليوم"
+    }
+    "no_bookings_today" -> when (language) {
+        AppLanguage.English -> "No bookings today"
+        AppLanguage.French -> "Aucune reservation aujourd'hui"
+        AppLanguage.Arabic -> "لا مواعيد اليوم"
+    }
+    "overdue_payments" -> when (language) {
+        AppLanguage.English -> "Overdue payments"
+        AppLanguage.French -> "Paiements en retard"
+        AppLanguage.Arabic -> "الدفعات المتأخرة"
+    }
+    "active_pipeline" -> when (language) {
+        AppLanguage.English -> "Active pipeline"
+        AppLanguage.French -> "Pipeline actif"
+        AppLanguage.Arabic -> "المسار النشط"
+    }
+    "recurrence" -> when (language) {
+        AppLanguage.English -> "Recurrence"
+        AppLanguage.French -> "Recurrence"
+        AppLanguage.Arabic -> "التكرار"
+    }
+    "repeat_until" -> when (language) {
+        AppLanguage.English -> "Repeat until"
+        AppLanguage.French -> "Repeter jusqu'au"
+        AppLanguage.Arabic -> "كرر حتى"
+    }
+    "recurrence_none" -> when (language) {
+        AppLanguage.English -> "None"
+        AppLanguage.French -> "Aucune"
+        AppLanguage.Arabic -> "بدون"
+    }
+    "recurrence_daily" -> when (language) {
+        AppLanguage.English -> "Daily"
+        AppLanguage.French -> "Quotidienne"
+        AppLanguage.Arabic -> "يومي"
+    }
+    "recurrence_weekly" -> when (language) {
+        AppLanguage.English -> "Weekly"
+        AppLanguage.French -> "Hebdomadaire"
+        AppLanguage.Arabic -> "اسبوعي"
+    }
+    "recurrence_monthly" -> when (language) {
+        AppLanguage.English -> "Monthly"
+        AppLanguage.French -> "Mensuelle"
+        AppLanguage.Arabic -> "شهري"
+    }
+    "repeats_daily" -> when (language) {
+        AppLanguage.English -> "Repeats daily"
+        AppLanguage.French -> "Repete chaque jour"
+        AppLanguage.Arabic -> "يتكرر يوميا"
+    }
+    "repeats_weekly" -> when (language) {
+        AppLanguage.English -> "Repeats weekly"
+        AppLanguage.French -> "Repete chaque semaine"
+        AppLanguage.Arabic -> "يتكرر اسبوعيا"
+    }
+    "repeats_monthly" -> when (language) {
+        AppLanguage.English -> "Repeats monthly"
+        AppLanguage.French -> "Repete chaque mois"
+        AppLanguage.Arabic -> "يتكرر شهريا"
+    }
+    "until" -> when (language) {
+        AppLanguage.English -> "until"
+        AppLanguage.French -> "jusqu'au"
+        AppLanguage.Arabic -> "حتى"
+    }
+    "unpaid" -> when (language) {
+        AppLanguage.English -> "Unpaid"
+        AppLanguage.French -> "Impayee"
+        AppLanguage.Arabic -> "غير مدفوع"
+    }
+    "partial" -> when (language) {
+        AppLanguage.English -> "Partial"
+        AppLanguage.French -> "Partiel"
+        AppLanguage.Arabic -> "جزئي"
+    }
+    "paid_status" -> when (language) {
+        AppLanguage.English -> "Paid"
+        AppLanguage.French -> "Paye"
+        AppLanguage.Arabic -> "مدفوع"
+    }
+    else -> tx(key, language)
+}
+
+private fun tx(key: String, language: AppLanguage): String = when (key) {
+    "export_data" -> when (language) {
+        AppLanguage.English -> "Export ClientFlow data"
+        AppLanguage.French -> "Exporter donnees ClientFlow"
+        AppLanguage.Arabic -> "تصدير بيانات ClientFlow"
+    }
+    "secure_clientflow" -> when (language) {
+        AppLanguage.English -> "Secure ClientFlow"
+        AppLanguage.French -> "Securiser ClientFlow"
+        AppLanguage.Arabic -> "تأمين ClientFlow"
+    }
+    "set_pin" -> when (language) {
+        AppLanguage.English -> "Set 4-digit PIN"
+        AppLanguage.French -> "Definir code PIN 4 chiffres"
+        AppLanguage.Arabic -> "ضع رمز PIN من 4 أرقام"
+    }
+    "save_pin" -> when (language) {
+        AppLanguage.English -> "Save PIN"
+        AppLanguage.French -> "Enregistrer PIN"
+        AppLanguage.Arabic -> "حفظ PIN"
+    }
+    "app_locked" -> when (language) {
+        AppLanguage.English -> "ClientFlow Locked"
+        AppLanguage.French -> "ClientFlow verrouille"
+        AppLanguage.Arabic -> "ClientFlow مقفل"
+    }
+    "enter_pin_continue" -> when (language) {
+        AppLanguage.English -> "Enter PIN to continue"
+        AppLanguage.French -> "Entrer PIN pour continuer"
+        AppLanguage.Arabic -> "أدخل PIN للمتابعة"
+    }
+    "wrong_pin" -> when (language) {
+        AppLanguage.English -> "Wrong PIN"
+        AppLanguage.French -> "PIN incorrect"
+        AppLanguage.Arabic -> "PIN غير صحيح"
+    }
+    "unlock" -> when (language) {
+        AppLanguage.English -> "Unlock"
+        AppLanguage.French -> "Deverrouiller"
+        AppLanguage.Arabic -> "فتح"
+    }
+    "search_clients" -> when (language) {
+        AppLanguage.English -> "Search clients"
+        AppLanguage.French -> "Rechercher clients"
+        AppLanguage.Arabic -> "البحث عن العملاء"
+    }
+    "no_clients_yet" -> when (language) {
+        AppLanguage.English -> "No clients yet"
+        AppLanguage.French -> "Aucun client pour le moment"
+        AppLanguage.Arabic -> "لا يوجد عملاء بعد"
+    }
+    "upgrade_add_clients" -> when (language) {
+        AppLanguage.English -> "Upgrade to add more clients"
+        AppLanguage.French -> "Mettre a niveau pour ajouter plus de clients"
+        AppLanguage.Arabic -> "قم بالترقية لإضافة المزيد من العملاء"
+    }
+    "add_client" -> when (language) {
+        AppLanguage.English -> "Add client"
+        AppLanguage.French -> "Ajouter client"
+        AppLanguage.Arabic -> "إضافة عميل"
+    }
+    "add_client_title" -> when (language) {
+        AppLanguage.English -> "Add Client"
+        AppLanguage.French -> "Ajouter Client"
+        AppLanguage.Arabic -> "إضافة عميل"
+    }
+    "edit_client_title" -> when (language) {
+        AppLanguage.English -> "Edit Client"
+        AppLanguage.French -> "Modifier Client"
+        AppLanguage.Arabic -> "تعديل عميل"
+    }
+    "name" -> when (language) {
+        AppLanguage.English -> "Name"
+        AppLanguage.French -> "Nom"
+        AppLanguage.Arabic -> "الاسم"
+    }
+    "save_changes" -> when (language) {
+        AppLanguage.English -> "Save changes"
+        AppLanguage.French -> "Enregistrer modifications"
+        AppLanguage.Arabic -> "حفظ التعديلات"
+    }
+    "search_bookings" -> when (language) {
+        AppLanguage.English -> "Search bookings"
+        AppLanguage.French -> "Rechercher reservations"
+        AppLanguage.Arabic -> "البحث في المواعيد"
+    }
+    "appointments_on" -> when (language) {
+        AppLanguage.English -> "Appointments on"
+        AppLanguage.French -> "Rendez-vous du"
+        AppLanguage.Arabic -> "مواعيد يوم"
+    }
+    "no_appointments_day" -> when (language) {
+        AppLanguage.English -> "No appointments on this day"
+        AppLanguage.French -> "Aucun rendez-vous ce jour"
+        AppLanguage.Arabic -> "لا توجد مواعيد في هذا اليوم"
+    }
+    "appointment" -> when (language) {
+        AppLanguage.English -> "Appointment"
+        AppLanguage.French -> "Rendez-vous"
+        AppLanguage.Arabic -> "موعد"
+    }
+    "open_client" -> when (language) {
+        AppLanguage.English -> "Open client"
+        AppLanguage.French -> "Ouvrir client"
+        AppLanguage.Arabic -> "فتح العميل"
+    }
+    "edit_booking" -> when (language) {
+        AppLanguage.English -> "Edit booking"
+        AppLanguage.French -> "Modifier reservation"
+        AppLanguage.Arabic -> "تعديل الموعد"
+    }
+    "delete_booking" -> when (language) {
+        AppLanguage.English -> "Delete booking"
+        AppLanguage.French -> "Supprimer reservation"
+        AppLanguage.Arabic -> "حذف الموعد"
+    }
+    "delete_booking_confirm_title" -> when (language) {
+        AppLanguage.English -> "Delete booking?"
+        AppLanguage.French -> "Supprimer reservation ?"
+        AppLanguage.Arabic -> "حذف الموعد؟"
+    }
+    "delete_booking_confirm_text" -> when (language) {
+        AppLanguage.English -> "This action cannot be undone."
+        AppLanguage.French -> "Action irreversible."
+        AppLanguage.Arabic -> "لا يمكن التراجع عن هذا الإجراء."
+    }
+    "close" -> when (language) {
+        AppLanguage.English -> "Close"
+        AppLanguage.French -> "Fermer"
+        AppLanguage.Arabic -> "إغلاق"
+    }
+    "delete" -> when (language) {
+        AppLanguage.English -> "Delete"
+        AppLanguage.French -> "Supprimer"
+        AppLanguage.Arabic -> "حذف"
+    }
+    "cancel" -> when (language) {
+        AppLanguage.English -> "Cancel"
+        AppLanguage.French -> "Annuler"
+        AppLanguage.Arabic -> "إلغاء"
+    }
+    "booking" -> when (language) {
+        AppLanguage.English -> "Booking"
+        AppLanguage.French -> "Reservation"
+        AppLanguage.Arabic -> "موعد"
+    }
+    "date" -> when (language) {
+        AppLanguage.English -> "Date"
+        AppLanguage.French -> "Date"
+        AppLanguage.Arabic -> "التاريخ"
+    }
+    "time" -> when (language) {
+        AppLanguage.English -> "Time"
+        AppLanguage.French -> "Heure"
+        AppLanguage.Arabic -> "الوقت"
+    }
+    "location" -> when (language) {
+        AppLanguage.English -> "Location"
+        AppLanguage.French -> "Lieu"
+        AppLanguage.Arabic -> "المكان"
+    }
+    "notes" -> when (language) {
+        AppLanguage.English -> "Notes"
+        AppLanguage.French -> "Notes"
+        AppLanguage.Arabic -> "ملاحظات"
+    }
+    "save_booking" -> when (language) {
+        AppLanguage.English -> "Save booking"
+        AppLanguage.French -> "Enregistrer reservation"
+        AppLanguage.Arabic -> "حفظ الموعد"
+    }
+    "phone" -> when (language) {
+        AppLanguage.English -> "Phone"
+        AppLanguage.French -> "Telephone"
+        AppLanguage.Arabic -> "الهاتف"
+    }
+    "service_type" -> when (language) {
+        AppLanguage.English -> "Service type"
+        AppLanguage.French -> "Type service"
+        AppLanguage.Arabic -> "نوع الخدمة"
+    }
+    "payment" -> when (language) {
+        AppLanguage.English -> "Payment"
+        AppLanguage.French -> "Paiement"
+        AppLanguage.Arabic -> "الدفع"
+    }
+    "payment_for" -> when (language) {
+        AppLanguage.English -> "Payment for"
+        AppLanguage.French -> "Paiement pour"
+        AppLanguage.Arabic -> "الدفع لـ"
+    }
+    "total_amount" -> when (language) {
+        AppLanguage.English -> "Total amount"
+        AppLanguage.French -> "Montant total"
+        AppLanguage.Arabic -> "المبلغ الإجمالي"
+    }
+    "paid_amount" -> when (language) {
+        AppLanguage.English -> "Paid amount"
+        AppLanguage.French -> "Montant paye"
+        AppLanguage.Arabic -> "المبلغ المدفوع"
+    }
+    "due_date" -> when (language) {
+        AppLanguage.English -> "Due date"
+        AppLanguage.French -> "Date echeance"
+        AppLanguage.Arabic -> "تاريخ الاستحقاق"
+    }
+    "save_payment" -> when (language) {
+        AppLanguage.English -> "Save payment"
+        AppLanguage.French -> "Enregistrer paiement"
+        AppLanguage.Arabic -> "حفظ الدفع"
+    }
+    "send_whatsapp" -> when (language) {
+        AppLanguage.English -> "Send WhatsApp"
+        AppLanguage.French -> "Envoyer WhatsApp"
+        AppLanguage.Arabic -> "إرسال واتساب"
+    }
+    "pipeline" -> when (language) {
+        AppLanguage.English -> "Pipeline"
+        AppLanguage.French -> "Pipeline"
+        AppLanguage.Arabic -> "المسار"
+    }
+    "add_payment_details" -> when (language) {
+        AppLanguage.English -> "Add payment details"
+        AppLanguage.French -> "Ajouter details paiement"
+        AppLanguage.Arabic -> "إضافة تفاصيل الدفع"
+    }
+    "total" -> when (language) {
+        AppLanguage.English -> "Total"
+        AppLanguage.French -> "Total"
+        AppLanguage.Arabic -> "الإجمالي"
+    }
+    "paid" -> when (language) {
+        AppLanguage.English -> "Paid"
+        AppLanguage.French -> "Paye"
+        AppLanguage.Arabic -> "المدفوع"
+    }
+    "balance" -> when (language) {
+        AppLanguage.English -> "Balance"
+        AppLanguage.French -> "Reste"
+        AppLanguage.Arabic -> "المتبقي"
+    }
+    "due" -> when (language) {
+        AppLanguage.English -> "Due"
+        AppLanguage.French -> "Echeance"
+        AppLanguage.Arabic -> "الاستحقاق"
+    }
+    "bookings" -> when (language) {
+        AppLanguage.English -> "Bookings"
+        AppLanguage.French -> "Reservations"
+        AppLanguage.Arabic -> "المواعيد"
+    }
+    "add_booking" -> when (language) {
+        AppLanguage.English -> "Add booking"
+        AppLanguage.French -> "Ajouter reservation"
+        AppLanguage.Arabic -> "إضافة موعد"
+    }
+    "invoices" -> when (language) {
+        AppLanguage.English -> "Invoices"
+        AppLanguage.French -> "Factures"
+        AppLanguage.Arabic -> "الفواتير"
+    }
+    "service" -> when (language) {
+        AppLanguage.English -> "Service"
+        AppLanguage.French -> "Service"
+        AppLanguage.Arabic -> "الخدمة"
+    }
+    "invoice_created" -> when (language) {
+        AppLanguage.English -> "Invoice created"
+        AppLanguage.French -> "Facture creee"
+        AppLanguage.Arabic -> "تم إنشاء الفاتورة"
+    }
+    "add_payment_first" -> when (language) {
+        AppLanguage.English -> "Add payment first"
+        AppLanguage.French -> "Ajouter paiement d'abord"
+        AppLanguage.Arabic -> "أضف الدفع أولاً"
+    }
+    "generate_invoice" -> when (language) {
+        AppLanguage.English -> "Generate invoice"
+        AppLanguage.French -> "Generer facture"
+        AppLanguage.Arabic -> "إنشاء فاتورة"
+    }
+    "delete_client" -> when (language) {
+        AppLanguage.English -> "Delete client"
+        AppLanguage.French -> "Supprimer client"
+        AppLanguage.Arabic -> "حذف العميل"
+    }
+    "delete_client_confirm_title" -> when (language) {
+        AppLanguage.English -> "Delete client?"
+        AppLanguage.French -> "Supprimer client ?"
+        AppLanguage.Arabic -> "حذف العميل؟"
+    }
+    "app_security" -> when (language) {
+        AppLanguage.English -> "App security"
+        AppLanguage.French -> "Securite application"
+        AppLanguage.Arabic -> "أمان التطبيق"
+    }
+    "security_desc" -> when (language) {
+        AppLanguage.English -> "PIN lock enabled. Data stays local on device."
+        AppLanguage.French -> "Verrou PIN actif. Donnees restent locales."
+        AppLanguage.Arabic -> "قفل PIN مفعل. البيانات تبقى محلية على الجهاز."
+    }
+    "lock_now" -> when (language) {
+        AppLanguage.English -> "Lock app now"
+        AppLanguage.French -> "Verrouiller maintenant"
+        AppLanguage.Arabic -> "اقفل التطبيق الآن"
+    }
+    "reset_pin" -> when (language) {
+        AppLanguage.English -> "Reset PIN"
+        AppLanguage.French -> "Reinitialiser PIN"
+        AppLanguage.Arabic -> "إعادة تعيين PIN"
+    }
+    "upgrade" -> when (language) {
+        AppLanguage.English -> "Upgrade"
+        AppLanguage.French -> "Mise a niveau"
+        AppLanguage.Arabic -> "الترقية"
+    }
+    "free_limit" -> when (language) {
+        AppLanguage.English -> "Free limit"
+        AppLanguage.French -> "Limite gratuite"
+        AppLanguage.Arabic -> "الحد المجاني"
+    }
+    "activation_code" -> when (language) {
+        AppLanguage.English -> "Activation code"
+        AppLanguage.French -> "Code activation"
+        AppLanguage.Arabic -> "رمز التفعيل"
+    }
+    "pro_activated" -> when (language) {
+        AppLanguage.English -> "Pro activated"
+        AppLanguage.French -> "Pro active"
+        AppLanguage.Arabic -> "تم تفعيل البرو"
+    }
+    "invalid_code" -> when (language) {
+        AppLanguage.English -> "Invalid code"
+        AppLanguage.French -> "Code invalide"
+        AppLanguage.Arabic -> "رمز غير صالح"
+    }
+    "activate" -> when (language) {
+        AppLanguage.English -> "Activate"
+        AppLanguage.French -> "Activer"
+        AppLanguage.Arabic -> "تفعيل"
+    }
+    "summary" -> when (language) {
+        AppLanguage.English -> "Summary"
+        AppLanguage.French -> "Resume"
+        AppLanguage.Arabic -> "الملخص"
+    }
+    "pin" -> when (language) {
+        AppLanguage.English -> "PIN"
+        AppLanguage.French -> "PIN"
+        AppLanguage.Arabic -> "PIN"
+    }
+    "whatsapp_templates" -> when (language) {
+        AppLanguage.English -> "WhatsApp templates"
+        AppLanguage.French -> "Modeles WhatsApp"
+        AppLanguage.Arabic -> "قوالب واتساب"
+    }
+    "send" -> when (language) {
+        AppLanguage.English -> "Send"
+        AppLanguage.French -> "Envoyer"
+        AppLanguage.Arabic -> "إرسال"
+    }
+    "edit" -> when (language) {
+        AppLanguage.English -> "Edit"
+        AppLanguage.French -> "Modifier"
+        AppLanguage.Arabic -> "تعديل"
+    }
+    "new_template" -> when (language) {
+        AppLanguage.English -> "New template"
+        AppLanguage.French -> "Nouveau modele"
+        AppLanguage.Arabic -> "قالب جديد"
+    }
+    "save" -> when (language) {
+        AppLanguage.English -> "Save"
+        AppLanguage.French -> "Enregistrer"
+        AppLanguage.Arabic -> "حفظ"
+    }
+    "template" -> when (language) {
+        AppLanguage.English -> "Template"
+        AppLanguage.French -> "Modele"
+        AppLanguage.Arabic -> "قالب"
+    }
+    "emoji" -> when (language) {
+        AppLanguage.English -> "Emoji"
+        AppLanguage.French -> "Emoji"
+        AppLanguage.Arabic -> "إيموجي"
+    }
+    "message" -> when (language) {
+        AppLanguage.English -> "Message"
+        AppLanguage.French -> "Message"
+        AppLanguage.Arabic -> "رسالة"
+    }
+    "unknown_client" -> when (language) {
+        AppLanguage.English -> "Unknown client"
+        AppLanguage.French -> "Client inconnu"
+        AppLanguage.Arabic -> "عميل غير معروف"
+    }
+    "tap_quick_details" -> when (language) {
+        AppLanguage.English -> "Tap for quick details"
+        AppLanguage.French -> "Touchez pour details rapides"
+        AppLanguage.Arabic -> "اضغط للتفاصيل السريعة"
     }
     else -> key
 }
