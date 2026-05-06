@@ -1,0 +1,8 @@
+# Firebase service account - NEVER commit this
+service-account.json
+
+# Dependencies
+node_modules/
+
+# Generated codes output
+codes.txt
