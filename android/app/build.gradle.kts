@@ -84,6 +84,7 @@ dependencies {
     implementation("com.airbnb.android:lottie-compose:6.4.1")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
     implementation("com.google.firebase:firebase-firestore-ktx")

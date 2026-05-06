@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1401,6 +1402,55 @@ private fun LicenseScreen(state: AppState, onBack: () -> Unit, onActivate: (Stri
                     Text("${tx("free_limit", language)}: ${state.freeClientLimit}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        tr("contact_for_code", language),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ContactRow(
+                        emoji = "\uD83D\uDCE7",
+                        text = tx("contact_email", language),
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:k.ahmed.lara@gmail.com")
+                            }
+                            context.startActivity(intent)
+                        },
+                        language = language
+                    )
+                    ContactRow(
+                        emoji = "\uD83D\uDCAC",
+                        text = tx("contact_whatsapp", language),
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("https://wa.me/212666289222")
+                            }
+                            context.startActivity(intent)
+                        },
+                        language = language
+                    )
+                    ContactRow(
+                        emoji = "\uD83C\uDF10",
+                        text = tx("contact_website", language),
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("https://laaraichi.com")
+                            }
+                            context.startActivity(intent)
+                        },
+                        language = language
+                    )
+                }
+            }
             OutlinedTextField(code, { code = it }, label = { Text(tx("activation_code", language)) }, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 onActivate(code) { ok ->
@@ -1409,6 +1459,25 @@ private fun LicenseScreen(state: AppState, onBack: () -> Unit, onActivate: (Stri
                 }
             }, modifier = Modifier.fillMaxWidth()) { Text(tx("activate", language)) }
         }
+    }
+}
+
+@Composable
+private fun ContactRow(emoji: String, text: String, onClick: () -> Unit, language: AppLanguage) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(emoji, style = MaterialTheme.typography.titleLarge)
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
 
@@ -1460,19 +1529,21 @@ private fun DatePickerField(
         label = { Text(label) },
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                focusManager.clearFocus()
-                DatePickerDialog(
-                    context,
-                    { _, year, month, dayOfMonth ->
-                        onDateSelected(
-                            String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
-                        )
-                    },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                ).show()
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    focusManager.clearFocus()
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            onDateSelected(
+                                String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                            )
+                        },
+                        calendar.get(Calendar.YEAR),
+                        calendar.get(Calendar.MONTH),
+                        calendar.get(Calendar.DAY_OF_MONTH)
+                    ).show()
+                }
             }
     )
 }
@@ -1496,17 +1567,19 @@ private fun TimePickerField(
         label = { Text(label) },
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                focusManager.clearFocus()
-                TimePickerDialog(
-                    context,
-                    { _, hourOfDay, minute ->
-                        onTimeSelected(String.format(Locale.US, "%02d:%02d", hourOfDay, minute))
-                    },
-                    initialHour,
-                    initialMinute,
-                    true
-                ).show()
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    focusManager.clearFocus()
+                    TimePickerDialog(
+                        context,
+                        { _, hourOfDay, minute ->
+                            onTimeSelected(String.format(Locale.US, "%02d:%02d", hourOfDay, minute))
+                        },
+                        initialHour,
+                        initialMinute,
+                        true
+                    ).show()
+                }
             }
     )
 }
@@ -1953,6 +2026,11 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Manage plan"
         AppLanguage.French -> "Gerer forfait"
         AppLanguage.Arabic -> "إدارة الخطة"
+    }
+    "contact_for_code" -> when (language) {
+        AppLanguage.English -> "Contact for activation code"
+        AppLanguage.French -> "Contacter pour code activation"
+        AppLanguage.Arabic -> "تواصل للحصول على الرمز"
     }
     else -> key
 }
@@ -2405,6 +2483,21 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Activate"
         AppLanguage.French -> "Activer"
         AppLanguage.Arabic -> "تفعيل"
+    }
+    "contact_email" -> when (language) {
+        AppLanguage.English -> "k.ahmed.lara@gmail.com"
+        AppLanguage.French -> "k.ahmed.lara@gmail.com"
+        AppLanguage.Arabic -> "k.ahmed.lara@gmail.com"
+    }
+    "contact_whatsapp" -> when (language) {
+        AppLanguage.English -> "+212666289222"
+        AppLanguage.French -> "+212666289222"
+        AppLanguage.Arabic -> "+212666289222"
+    }
+    "contact_website" -> when (language) {
+        AppLanguage.English -> "laaraichi.com"
+        AppLanguage.French -> "laaraichi.com"
+        AppLanguage.Arabic -> "laaraichi.com"
     }
     "summary" -> when (language) {
         AppLanguage.English -> "Summary"
