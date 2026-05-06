@@ -1,30 +1,74 @@
 package com.ahmed.clientflow.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.googlefonts.GoogleFont.Provider
 import androidx.compose.ui.text.googlefonts.Font as GoogleFontEntry
 import com.ahmed.clientflow.R
+import com.ahmed.clientflow.data.DarkThemeMode
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF2563EB),
-    secondary = Color(0xFF0F766E),
-    tertiary = Color(0xFF7C3AED),
-    background = Color(0xFFF7F8FC),
-    surface = Color(0xFFFFFFFF),
-    error = Color(0xFFDC2626)
+    primary = blue500,
+    onPrimary = Color.White,
+    primaryContainer = blue100,
+    onPrimaryContainer = blue800,
+    secondary = teal400,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFCCFBF1),
+    onSecondaryContainer = teal700,
+    tertiary = purple400,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFEDE9FE),
+    onTertiaryContainer = purple700,
+    error = red400,
+    onError = Color.White,
+    errorContainer = red50,
+    onErrorContainer = red600,
+    background = slate50,
+    onBackground = slate900,
+    surface = Color.White,
+    onSurface = slate900,
+    surfaceVariant = gray100,
+    onSurfaceVariant = gray500,
+    outline = gray200,
+    outlineVariant = gray200
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF93C5FD),
-    secondary = Color(0xFF5EEAD4),
-    tertiary = Color(0xFFC4B5FD)
+    primary = blue300,
+    onPrimary = blue900,
+    primaryContainer = blue800,
+    onPrimaryContainer = blue100,
+    secondary = teal200,
+    onSecondary = teal700,
+    secondaryContainer = Color(0xFF134E4A),
+    onSecondaryContainer = teal200,
+    tertiary = purple200,
+    onTertiary = purple700,
+    tertiaryContainer = Color(0xFF4C1D95),
+    onTertiaryContainer = purple200,
+    error = Color(0xFFFCA5A5),
+    onError = Color(0xFF7F1D1D),
+    errorContainer = Color(0xFF7F1D1D),
+    onErrorContainer = Color(0xFFFECACA),
+    background = slate900,
+    onBackground = slate100,
+    surface = Color(0xFF1E293B),
+    onSurface = slate200,
+    surfaceVariant = slate800,
+    onSurfaceVariant = slate400,
+    outline = slate600,
+    outlineVariant = slate700
 )
 
 private val provider = Provider(
@@ -35,22 +79,50 @@ private val provider = Provider(
 
 private val interFont = GoogleFont("Inter")
 
-private val appTypographyFont = FontFamily(
+private val interFamily = FontFamily(
     GoogleFontEntry(googleFont = interFont, fontProvider = provider)
 )
 
+private val InterTypography = AppTypography.run {
+    copy(
+        displayLarge = displayLarge.copy(fontFamily = interFamily),
+        headlineLarge = headlineLarge.copy(fontFamily = interFamily),
+        titleLarge = titleLarge.copy(fontFamily = interFamily),
+        titleMedium = titleMedium.copy(fontFamily = interFamily),
+        bodyLarge = bodyLarge.copy(fontFamily = interFamily),
+        bodyMedium = bodyMedium.copy(fontFamily = interFamily),
+        bodySmall = bodySmall.copy(fontFamily = interFamily),
+        labelLarge = labelLarge.copy(fontFamily = interFamily),
+        labelMedium = labelMedium.copy(fontFamily = interFamily),
+        labelSmall = labelSmall.copy(fontFamily = interFamily)
+    )
+}
+
 @Composable
-fun ClientFlowTheme(content: @Composable () -> Unit) {
+fun ClientFlowTheme(
+    darkThemeMode: DarkThemeMode = DarkThemeMode.System,
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    val context = LocalContext.current
+    val darkTheme = when (darkThemeMode) {
+        DarkThemeMode.System -> isSystemInDarkTheme()
+        DarkThemeMode.Light -> false
+        DarkThemeMode.Dark -> true
+    }
+
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
+
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
-        typography = MaterialTheme.typography.copy(
-            displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = appTypographyFont),
-            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = appTypographyFont),
-            titleLarge = MaterialTheme.typography.titleLarge.copy(fontFamily = appTypographyFont),
-            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = appTypographyFont),
-            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = appTypographyFont),
-            labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = appTypographyFont)
-        ),
+        colorScheme = colorScheme,
+        typography = InterTypography,
+        shapes = AppShapes,
         content = content
     )
 }

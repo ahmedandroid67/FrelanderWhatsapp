@@ -3,3 +3,8 @@
 /android/app/build/
 /android/local.properties
 *.iml
+
+# Admin scripts
+/admin/node_modules/
+/admin/service-account.json
+/admin/service-account.json.example

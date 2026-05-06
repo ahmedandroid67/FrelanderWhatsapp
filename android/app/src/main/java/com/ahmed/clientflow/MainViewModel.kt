@@ -10,13 +10,20 @@ import com.ahmed.clientflow.data.AppState
 import com.ahmed.clientflow.data.AuthState
 import com.ahmed.clientflow.data.Booking
 import com.ahmed.clientflow.data.Client
+import com.ahmed.clientflow.data.ClientNote
 import com.ahmed.clientflow.data.ClientStatus
+import com.ahmed.clientflow.data.DarkThemeMode
+import com.ahmed.clientflow.data.Expense
+import com.ahmed.clientflow.data.ExpenseCategory
 import com.ahmed.clientflow.data.Invoice
+import com.ahmed.clientflow.data.MessageLog
 import com.ahmed.clientflow.data.MessageTemplate
 import com.ahmed.clientflow.data.Payment
 import com.ahmed.clientflow.data.PaymentStatus
 import com.ahmed.clientflow.data.RecurrenceType
+import com.ahmed.clientflow.data.Service
 import com.ahmed.clientflow.data.computePaymentStatus
+import com.ahmed.clientflow.data.randomId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +41,14 @@ data class UiState(
 class MainViewModel(private val repository: AppRepository) : ViewModel() {
     private val pinError = MutableStateFlow(false)
     private val exportPayload = MutableStateFlow<String?>(null)
+
+    val deviceId = MutableStateFlow("")
+
+    init {
+        viewModelScope.launch {
+            deviceId.value = repository.getDeviceId()
+        }
+    }
 
     val uiState: StateFlow<UiState> = combine(
         repository.appState,
@@ -62,8 +77,20 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         repository.clearPin()
     }
 
+    fun unlockByBiometric() = viewModelScope.launch {
+        repository.unlockByBiometric()
+    }
+
     fun lockApp() = viewModelScope.launch {
         repository.lock()
+    }
+
+    fun enableBiometric() = viewModelScope.launch {
+        repository.updateState { it.copy(biometricEnabled = true) }
+    }
+
+    fun disableBiometric() = viewModelScope.launch {
+        repository.updateState { it.copy(biometricEnabled = false) }
     }
 
     fun activatePro(code: String, onDone: (Boolean) -> Unit) = viewModelScope.launch {
@@ -116,6 +143,18 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
                     }
                 )
             }
+        }
+    }
+
+    fun addClientNote(clientId: String, content: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(clientNotes = state.clientNotes + ClientNote(clientId = clientId, content = content.trim()))
+        }
+    }
+
+    fun deleteClientNote(noteId: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(clientNotes = state.clientNotes.filterNot { it.id == noteId })
         }
     }
 
@@ -223,9 +262,84 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         }
     }
 
+    fun logMessage(clientId: String, templateId: String?, content: String, phone: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(messageLogs = state.messageLogs + MessageLog(
+                clientId = clientId,
+                templateId = templateId,
+                content = content,
+                phone = phone
+            ))
+        }
+    }
+
+    fun deleteMessageLog(logId: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(messageLogs = state.messageLogs.filterNot { it.id == logId })
+        }
+    }
+
+    fun saveExpense(
+        existingId: String?,
+        clientId: String?,
+        category: ExpenseCategory,
+        amount: Double,
+        description: String,
+        date: Long
+    ) = viewModelScope.launch {
+        repository.updateState { state ->
+            val expense = Expense(
+                id = existingId ?: Expense().id,
+                clientId = clientId,
+                category = category,
+                amount = amount,
+                description = description.trim(),
+                date = date
+            )
+            if (existingId == null) {
+                state.copy(expenses = state.expenses + expense)
+            } else {
+                state.copy(expenses = state.expenses.map { if (it.id == existingId) expense else it })
+            }
+        }
+    }
+
+    fun deleteExpense(expenseId: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(expenses = state.expenses.filterNot { it.id == expenseId })
+        }
+    }
+
+    fun saveService(existingId: String?, name: String, price: Double, emoji: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            val service = Service(id = existingId ?: randomId(), name = name.trim(), defaultPrice = price, emoji = emoji)
+            if (existingId == null) {
+                state.copy(services = state.services + service)
+            } else {
+                state.copy(services = state.services.map { if (it.id == existingId) service else it })
+            }
+        }
+    }
+
+    fun deleteService(serviceId: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(services = state.services.filterNot { it.id == serviceId })
+        }
+    }
+
     fun canAddClient(currentCount: Int): Boolean {
         val state = uiState.value.appState
         return state.isPro || currentCount < state.freeClientLimit
+    }
+
+    fun importClients(imported: List<Client>) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(clients = state.clients + imported)
+        }
+    }
+
+    fun updateLastBackupTime(timestamp: Long) = viewModelScope.launch {
+        repository.updateState { it.copy(lastBackupTime = timestamp) }
     }
 
     class Factory(private val context: Context) : ViewModelProvider.Factory {

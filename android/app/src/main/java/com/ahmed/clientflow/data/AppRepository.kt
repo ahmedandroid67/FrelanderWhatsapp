@@ -1,6 +1,7 @@
 package com.ahmed.clientflow.data
 
 import android.content.Context
+import android.provider.Settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -11,6 +12,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.io.IOException
@@ -28,6 +30,7 @@ class AppRepository(private val context: Context) {
         val pinHash = stringPreferencesKey("pin_hash")
         val locked = booleanPreferencesKey("locked")
         val freeClientLimit = intPreferencesKey("free_client_limit")
+        val deviceId = stringPreferencesKey("device_id")
     }
 
     val appState: Flow<AppState> = context.dataStore.data
@@ -88,6 +91,12 @@ class AppRepository(private val context: Context) {
         return ok
     }
 
+    suspend fun unlockByBiometric() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.locked] = false
+        }
+    }
+
     suspend fun lock() {
         context.dataStore.edit { prefs ->
             if (!prefs[Keys.pinHash].isNullOrBlank()) {
@@ -96,13 +105,27 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    suspend fun getDeviceId(): String {
+        val stored = context.dataStore.data.first()[Keys.deviceId]
+        if (!stored.isNullOrBlank()) return stored
+        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
+        val id = "CF-" + androidId.takeLast(12).uppercase()
+        context.dataStore.edit { prefs -> prefs[Keys.deviceId] = id }
+        return id
+    }
+
     suspend fun activatePro(code: String): Boolean {
-        val normalized = code.trim().uppercase()
-        val ok = normalized == "CF-PRO-V1-X7K9"
-        if (ok) {
-            updateState { it.copy(isPro = true) }
+        val deviceId = getDeviceId()
+        val normalized = code.trim().replace("-", "").replace(" ", "").uppercase()
+
+        val result = FirestoreHelper.activateCode(normalized, deviceId)
+        return when (result) {
+            is ActivationResult.Success -> {
+                updateState { it.copy(isPro = true) }
+                true
+            }
+            else -> false
         }
-        return ok
     }
 }
 

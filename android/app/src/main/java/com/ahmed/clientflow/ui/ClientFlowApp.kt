@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
@@ -78,6 +80,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,7 +94,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -114,12 +119,17 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.ahmed.clientflow.R
 import com.ahmed.clientflow.MainViewModel
+import com.ahmed.clientflow.ui.screen.BackupScreen
+import com.ahmed.clientflow.ui.screen.ExpenseFormScreen
+import com.ahmed.clientflow.ui.screen.ExpensesScreen
 import com.ahmed.clientflow.data.AppState
 import com.ahmed.clientflow.data.AppLanguage
 import com.ahmed.clientflow.data.AuthState
 import com.ahmed.clientflow.data.Booking
 import com.ahmed.clientflow.data.Client
 import com.ahmed.clientflow.data.ClientStatus
+import com.ahmed.clientflow.data.Expense
+import com.ahmed.clientflow.data.ExpenseCategory
 import com.ahmed.clientflow.data.Invoice
 import com.ahmed.clientflow.data.MessageTemplate
 import com.ahmed.clientflow.data.Payment
@@ -145,6 +155,7 @@ sealed class BottomRoute(val route: String, val label: String) {
     data object Home : BottomRoute("home", "Home")
     data object Clients : BottomRoute("clients", "Clients")
     data object Bookings : BottomRoute("bookings", "Bookings")
+    data object Revenue : BottomRoute("revenue", "Revenue")
 }
 
 @Composable
@@ -167,7 +178,7 @@ fun ClientFlowApp(viewModel: MainViewModel) {
 
     when (uiState.authState) {
         AuthState.Setup -> SetupPinScreen(viewModel, language)
-        AuthState.Locked -> LockScreen(viewModel, uiState.pinError, language)
+        AuthState.Locked -> LockScreen(viewModel, uiState.pinError, uiState.appState.biometricEnabled, language)
         AuthState.Unlocked -> MainScaffold(viewModel, uiState.appState, snackbarHostState)
     }
 }
@@ -200,9 +211,13 @@ private fun SetupPinScreen(viewModel: MainViewModel, language: AppLanguage) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, language: AppLanguage) {
+private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, biometricEnabled: Boolean, language: AppLanguage) {
     var pin by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -224,6 +239,26 @@ private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, language: Ap
             Button(onClick = { viewModel.unlock(pin); pin = "" }, enabled = pin.length == 4) {
                 Text(tx("unlock", language))
             }
+
+            if (biometricEnabled && activity != null) {
+                val manager = remember { com.ahmed.clientflow.security.BiometricAuthManager(activity) }
+                if (manager.isAvailable()) {
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = {
+                        manager.authenticate(
+                            title = tx("app_locked", language),
+                            subtitle = tx("enter_pin_continue", language),
+                            onSuccess = viewModel::unlockByBiometric,
+                            onError = {},
+                            onFailed = {}
+                        )
+                    }) {
+                        Icon(Icons.Default.Fingerprint, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(tx("use_fingerprint", language))
+                    }
+                }
+            }
         }
     }
 }
@@ -238,11 +273,12 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
-                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings).forEach { route ->
+                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue).forEach { route ->
                     val icon = when (route) {
                         BottomRoute.Home -> Icons.Default.Home
                         BottomRoute.Clients -> Icons.Default.People
                         BottomRoute.Bookings -> Icons.Default.CalendarMonth
+                        BottomRoute.Revenue -> Icons.Default.Shield
                     }
                     NavigationBarItem(
                         selected = currentRoute == route.route,
@@ -289,6 +325,38 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                     onOpenClient = { navController.navigate("client/$it") },
                     onEditBooking = { clientId, bookingId -> navController.navigate("bookingForm/$clientId?bookingId=$bookingId") },
                     onDeleteBooking = viewModel::deleteBooking
+                )
+            }
+            composable(BottomRoute.Revenue.route) {
+                RevenueScreen(
+                    state = state,
+                    onOpenExpenses = { navController.navigate("expenses") }
+                )
+            }
+            composable("expenses") {
+                ExpensesScreen(
+                    expenses = state.expenses,
+                    clients = state.clients,
+                    language = state.language,
+                    onBack = { navController.popBackStack() },
+                    onAddExpense = { navController.navigate("expenseForm") },
+                    onEditExpense = { navController.navigate("expenseForm?expenseId=$it") },
+                    onDeleteExpense = viewModel::deleteExpense
+                )
+            }
+            composable("expenseForm?expenseId={expenseId}", arguments = listOf(navArgument("expenseId") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })) { entry ->
+                val expenseId = entry.arguments?.getString("expenseId")
+                val expense = state.expenses.find { it.id == expenseId }
+                ExpenseFormScreen(
+                    expense = expense,
+                    clients = state.clients,
+                    language = state.language,
+                    onBack = { navController.popBackStack() },
+                    onSave = viewModel::saveExpense
                 )
             }
             composable("clientForm?clientId={clientId}", arguments = listOf(navArgument("clientId") {
@@ -352,10 +420,18 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                 )
             }
             composable("security") {
-                SecurityScreen(language = state.language, onBack = { navController.popBackStack() }, onLock = {
-                    viewModel.lockApp()
-                    navController.popBackStack()
-                }, onClearPin = viewModel::clearPin)
+                SecurityScreen(
+                    language = state.language,
+                    biometricEnabled = state.biometricEnabled,
+                    onBack = { navController.popBackStack() },
+                    onLock = {
+                        viewModel.lockApp()
+                        navController.popBackStack()
+                    },
+                    onClearPin = viewModel::clearPin,
+                    onEnableBiometric = viewModel::enableBiometric,
+                    onDisableBiometric = viewModel::disableBiometric
+                )
             }
             composable("settings") {
                 SettingsScreen(
@@ -363,7 +439,16 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                     onBack = { navController.popBackStack() },
                     onOpenSecurity = { navController.navigate("security") },
                     onOpenLicense = { navController.navigate("license") },
+                    onOpenBackup = { navController.navigate("backup") },
                     onSetLanguage = viewModel::setLanguage
+                )
+            }
+            composable("backup") {
+                BackupScreen(
+                    language = state.language,
+                    lastBackupTime = state.lastBackupTime,
+                    onBack = { navController.popBackStack() },
+                    onBackupComplete = viewModel::updateLastBackupTime
                 )
             }
             composable("license") {
@@ -372,6 +457,65 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                     onBack = { navController.popBackStack() },
                     onActivate = { code, done -> viewModel.activatePro(code, done) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RevenueScreen(state: AppState, onOpenExpenses: () -> Unit) {
+    val language = state.language
+    val paid = state.payments.filter { it.status == PaymentStatus.Paid }
+    val partial = state.payments.filter { it.status == PaymentStatus.Partial }
+    val unpaid = state.payments.filter { it.status == PaymentStatus.Unpaid }
+    val totalRevenue = state.payments.sumOf { it.paidAmount }
+    val pendingAmount = state.payments.sumOf { (it.totalAmount - it.paidAmount).coerceAtLeast(0.0) }
+    val totalInvoiced = state.payments.sumOf { it.totalAmount }
+    val totalExpenses = state.expenses.sumOf { it.amount }
+    val netProfit = totalRevenue - totalExpenses
+
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Total Revenue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
+                    Text("$${formatAmount(totalRevenue)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Pending: $${formatAmount(pendingAmount)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
+                }
+            }
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.12f))) {
+                    Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$${formatAmount(netProfit)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (netProfit >= 0) Color(0xFF4CAF50) else Color(0xFFE53935))
+                        Text("Net Profit", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFE53935).copy(alpha = 0.12f))) {
+                    Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("-$${formatAmount(totalExpenses)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                        Text("Expenses", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedButton(onClick = onOpenExpenses, modifier = Modifier.fillMaxWidth()) {
+                Text("View All Expenses")
             }
         }
     }
@@ -455,6 +599,7 @@ private fun SettingsScreen(
     onBack: () -> Unit,
     onOpenSecurity: () -> Unit,
     onOpenLicense: () -> Unit,
+    onOpenBackup: () -> Unit,
     onSetLanguage: (AppLanguage) -> Unit
 ) {
     FormScaffold(title = tr("settings", state.language), onBack = onBack) {
@@ -473,6 +618,17 @@ private fun SettingsScreen(
                         Icon(Icons.Default.Shield, null)
                         Spacer(Modifier.size(8.dp))
                         Text(tr("open_security", state.language))
+                    }
+                }
+            }
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Backup & Restore", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Export or import your data", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = onOpenBackup, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Open Backup")
                     }
                 }
             }
@@ -1087,7 +1243,23 @@ private fun ClientDetailScreen(
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(tx("invoices", language), fontWeight = FontWeight.SemiBold)
                             invoices.forEach { invoice ->
-                                InvoiceRow(invoice)
+                                InvoiceRow(
+                                    invoice = invoice,
+                                    onExportPdf = {
+                                        val generator = com.ahmed.clientflow.pdf.InvoicePdfGenerator(context)
+                                        val uri = generator.generatePdf(invoice, client, payment)
+                                        if (uri != null) {
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/pdf"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "Share Invoice PDF"))
+                                        } else {
+                                            Toast.makeText(context, "Failed to generate PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -1139,8 +1311,22 @@ private fun ClientDetailScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SecurityScreen(language: AppLanguage, onBack: () -> Unit, onLock: () -> Unit, onClearPin: () -> Unit) {
+private fun SecurityScreen(
+    language: AppLanguage,
+    biometricEnabled: Boolean,
+    onBack: () -> Unit,
+    onLock: () -> Unit,
+    onClearPin: () -> Unit,
+    onEnableBiometric: () -> Unit,
+    onDisableBiometric: () -> Unit
+) {
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    val bioAvailable = activity?.let { com.ahmed.clientflow.security.BiometricAuthManager.canAuthenticate(it) } ?: false
+    var showBioConfirm by remember { mutableStateOf(false) }
+
     FormScaffold(title = tx("security", language), onBack = onBack) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card {
@@ -1151,6 +1337,53 @@ private fun SecurityScreen(language: AppLanguage, onBack: () -> Unit, onLock: ()
                     OutlinedButton(onClick = onClearPin, modifier = Modifier.fillMaxWidth()) { Text(tx("reset_pin", language)) }
                 }
             }
+            if (bioAvailable) {
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Fingerprint, null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Fingerprint Unlock", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Use fingerprint to unlock app",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = biometricEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (enabled && activity != null) {
+                                        showBioConfirm = true
+                                    } else {
+                                        onDisableBiometric()
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showBioConfirm && activity != null) {
+        val manager = remember(activity) { com.ahmed.clientflow.security.BiometricAuthManager(activity) }
+        LaunchedEffect(showBioConfirm) {
+            manager.authenticate(
+                title = "Fingerprint Unlock",
+                subtitle = "Confirm to enable fingerprint unlock",
+                onSuccess = {
+                    onEnableBiometric()
+                    showBioConfirm = false
+                },
+                onError = { showBioConfirm = false },
+                onFailed = { showBioConfirm = false }
+            )
         }
     }
 }
@@ -1439,13 +1672,19 @@ private fun BookingRowCompact(booking: Booking, language: AppLanguage, onEdit: (
 }
 
 @Composable
-private fun InvoiceRow(invoice: Invoice) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun InvoiceRow(invoice: Invoice, onExportPdf: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Column(Modifier.weight(1f)) {
             Text(invoice.description, fontWeight = FontWeight.Medium)
             Text(formatDateHuman(invoice.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text("$${invoice.amount}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        IconButton(onClick = onExportPdf) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Export PDF", modifier = Modifier.size(20.dp))
+        }
     }
 }
 
@@ -1820,6 +2059,10 @@ private fun t(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.Arabic -> "مدفوع"
     }
     else -> tx(key, language)
+}
+
+private fun formatAmount(amount: Double): String {
+    return if (amount == amount.toLong().toDouble()) "%.0f".format(amount) else "%.2f".format(amount)
 }
 
 private fun tx(key: String, language: AppLanguage): String = when (key) {

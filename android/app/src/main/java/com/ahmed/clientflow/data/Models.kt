@@ -47,6 +47,19 @@ data class Invoice(
 )
 
 @Serializable
+data class Expense(
+    val id: String = randomId(),
+    val clientId: String? = null,
+    val category: ExpenseCategory = ExpenseCategory.Other,
+    val amount: Double = 0.0,
+    val description: String = "",
+    val date: Long = System.currentTimeMillis()
+)
+
+@Serializable
+enum class ExpenseCategory { Travel, Supplies, Software, Marketing, Other }
+
+@Serializable
 data class MessageTemplate(
     val id: String = randomId(),
     val name: String,
@@ -56,15 +69,63 @@ data class MessageTemplate(
 )
 
 @Serializable
+data class ClientNote(
+    val id: String = randomId(),
+    val clientId: String,
+    val content: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class MessageLog(
+    val id: String = randomId(),
+    val clientId: String,
+    val templateId: String?,
+    val content: String,
+    val phone: String,
+    val sentAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class Service(
+    val id: String = randomId(),
+    val name: String,
+    val defaultPrice: Double = 0.0,
+    val emoji: String = "⚙️"
+)
+
+fun defaultServices(): List<Service> = listOf(
+    Service(id = "svc_web", name = "Web Development", defaultPrice = 500.0, emoji = "🌐"),
+    Service(id = "svc_design", name = "Graphic Design", defaultPrice = 200.0, emoji = "🎨"),
+    Service(id = "svc_photo", name = "Photography", defaultPrice = 300.0, emoji = "📷"),
+    Service(id = "svc_consult", name = "Consulting", defaultPrice = 150.0, emoji = "💼"),
+    Service(id = "svc_writing", name = "Writing & Translation", defaultPrice = 100.0, emoji = "✍️"),
+    Service(id = "svc_video", name = "Video Editing", defaultPrice = 250.0, emoji = "🎬"),
+    Service(id = "svc_marketing", name = "Digital Marketing", defaultPrice = 400.0, emoji = "📱"),
+    Service(id = "svc_tutoring", name = "Tutoring", defaultPrice = 50.0, emoji = "📚"),
+    Service(id = "svc_mobile", name = "Mobile App Development", defaultPrice = 800.0, emoji = "📲"),
+    Service(id = "svc_seo", name = "SEO Services", defaultPrice = 350.0, emoji = "🔍")
+)
+
+@Serializable
 data class AppState(
     val clients: List<Client> = emptyList(),
     val bookings: List<Booking> = emptyList(),
     val payments: List<Payment> = emptyList(),
     val invoices: List<Invoice> = emptyList(),
+    val expenses: List<Expense> = emptyList(),
     val templates: List<MessageTemplate> = defaultTemplates(),
+    val clientNotes: List<ClientNote> = emptyList(),
+    val messageLogs: List<MessageLog> = emptyList(),
+    val services: List<Service> = defaultServices(),
     val isPro: Boolean = false,
+    val biometricEnabled: Boolean = false,
     val freeClientLimit: Int = 1,
-    val language: AppLanguage = AppLanguage.English
+    val language: AppLanguage = AppLanguage.English,
+    val darkThemeMode: DarkThemeMode = DarkThemeMode.System,
+    val currencySymbol: String = "$",
+    val currencyCode: String = "USD",
+    val lastBackupTime: Long? = null
 )
 
 @Serializable
@@ -78,6 +139,9 @@ enum class AppLanguage { English, French, Arabic }
 
 @Serializable
 enum class RecurrenceType { None, Daily, Weekly, Monthly }
+
+@Serializable
+enum class DarkThemeMode { System, Light, Dark }
 
 fun computePaymentStatus(total: Double, paid: Double): PaymentStatus = when {
     paid <= 0 -> PaymentStatus.Unpaid
