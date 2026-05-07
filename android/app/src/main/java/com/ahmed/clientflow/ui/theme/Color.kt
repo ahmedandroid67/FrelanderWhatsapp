@@ -54,3 +54,20 @@ val gray600 = Color(0xFF4B5563)
 val gray900 = Color(0xFF111827)
 
 val surfacePink = Color(0xFFFFF1F2)
+
+// Custom Themes Colors
+val themeGreenPrimary = Color(0xFF1B5E20)
+val themeGreenBackground = Color(0xFFE8F5E9)
+
+val themeOrangePrimary = Color(0xFFE65100)
+val themeOrangeBackground = Color(0xFFFFF3E0)
+
+val themeBluePrimary = Color(0xFF1A237E)
+val themeBlueBackground = Color(0xFFF5F5DC)
+
+val themeMidnightPrimary = Color(0xFFFFD700)
+val themeMidnightBackground = Color(0xFF0A0E14)
+val themeMidnightSurface = Color(0xFF141B26)
+
+val themeTealPrimary = Color(0xFF00695C)
+val themeTealBackground = Color(0xFFE0F2F1)

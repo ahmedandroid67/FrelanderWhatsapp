@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahmed.clientflow.data.AppRepository
 import com.ahmed.clientflow.data.AppLanguage
 import com.ahmed.clientflow.data.AppState
+import com.ahmed.clientflow.data.AppTheme
 import com.ahmed.clientflow.data.AuthState
 import com.ahmed.clientflow.data.Booking
 import com.ahmed.clientflow.data.Client
@@ -35,7 +36,8 @@ data class UiState(
     val appState: AppState = AppState(),
     val authState: AuthState = AuthState.Setup,
     val pinError: Boolean = false,
-    val exportPayload: String? = null
+    val exportPayload: String? = null,
+    val deviceId: String = ""
 )
 
 class MainViewModel(private val repository: AppRepository) : ViewModel() {
@@ -60,7 +62,8 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
             appState = appState,
             authState = authState,
             pinError = pinErrorState,
-            exportPayload = export
+            exportPayload = export,
+            deviceId = deviceId.value
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
@@ -103,6 +106,10 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
 
     fun setLanguage(language: AppLanguage) = viewModelScope.launch {
         repository.updateState { it.copy(language = language) }
+    }
+
+    fun setTheme(theme: AppTheme) = viewModelScope.launch {
+        repository.updateState { it.copy(theme = theme) }
     }
 
     fun exportData() {
@@ -232,9 +239,31 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         }
     }
 
-    fun generateInvoice(clientId: String, amount: Double, description: String) = viewModelScope.launch {
+    fun saveInvoice(
+        existingId: String?,
+        clientId: String,
+        amount: Double,
+        description: String
+    ) = viewModelScope.launch {
         repository.updateState { state ->
-            state.copy(invoices = state.invoices + Invoice(clientId = clientId, amount = amount, description = description))
+            val invoice = Invoice(
+                id = existingId ?: randomId(),
+                clientId = clientId,
+                amount = amount,
+                description = description.trim(),
+                createdAt = if (existingId != null) state.invoices.find { it.id == existingId }?.createdAt ?: System.currentTimeMillis() else System.currentTimeMillis()
+            )
+            if (existingId == null) {
+                state.copy(invoices = state.invoices + invoice)
+            } else {
+                state.copy(invoices = state.invoices.map { if (it.id == existingId) invoice else it })
+            }
+        }
+    }
+
+    fun deleteInvoice(invoiceId: String) = viewModelScope.launch {
+        repository.updateState { state ->
+            state.copy(invoices = state.invoices.filterNot { it.id == invoiceId })
         }
     }
 

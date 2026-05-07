@@ -16,6 +16,7 @@ import androidx.compose.ui.text.googlefonts.GoogleFont.Provider
 import androidx.compose.ui.text.googlefonts.Font as GoogleFontEntry
 import com.ahmed.clientflow.R
 import com.ahmed.clientflow.data.DarkThemeMode
+import com.ahmed.clientflow.data.AppTheme
 
 private val LightColors = lightColorScheme(
     primary = blue500,
@@ -71,6 +72,51 @@ private val DarkColors = darkColorScheme(
     outlineVariant = slate700
 )
 
+private val GreenColors = lightColorScheme(
+    primary = themeGreenPrimary,
+    onPrimary = Color.White,
+    background = themeGreenBackground,
+    surface = Color.White,
+    onSurface = themeGreenPrimary,
+    surfaceVariant = themeGreenPrimary.copy(alpha = 0.05f)
+)
+
+private val OrangeColors = lightColorScheme(
+    primary = themeOrangePrimary,
+    onPrimary = Color.White,
+    background = themeOrangeBackground,
+    surface = Color.White,
+    onSurface = themeOrangePrimary,
+    surfaceVariant = themeOrangePrimary.copy(alpha = 0.05f)
+)
+
+private val BlueColors = lightColorScheme(
+    primary = themeBluePrimary,
+    onPrimary = Color.White,
+    background = themeBlueBackground,
+    surface = Color.White,
+    onSurface = themeBluePrimary,
+    surfaceVariant = themeBluePrimary.copy(alpha = 0.05f)
+)
+
+private val MidnightColors = darkColorScheme(
+    primary = themeMidnightPrimary,
+    onPrimary = themeMidnightBackground,
+    background = themeMidnightBackground,
+    surface = themeMidnightSurface,
+    onSurface = themeMidnightPrimary,
+    surfaceVariant = themeMidnightPrimary.copy(alpha = 0.1f)
+)
+
+private val TealColors = lightColorScheme(
+    primary = themeTealPrimary,
+    onPrimary = Color.White,
+    background = themeTealBackground,
+    surface = Color.White,
+    onSurface = themeTealPrimary,
+    surfaceVariant = themeTealPrimary.copy(alpha = 0.05f)
+)
+
 private val provider = Provider(
     providerAuthority = "com.google.android.gms.fonts",
     providerPackage = "com.google.android.gms",
@@ -101,6 +147,7 @@ private val InterTypography = AppTypography.run {
 @Composable
 fun ClientFlowTheme(
     darkThemeMode: DarkThemeMode = DarkThemeMode.System,
+    appTheme: AppTheme = AppTheme.Default,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
@@ -111,12 +158,21 @@ fun ClientFlowTheme(
         DarkThemeMode.Dark -> true
     }
 
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colorScheme = when (appTheme) {
+        AppTheme.Default -> {
+            when {
+                dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                    if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                }
+                darkTheme -> DarkColors
+                else -> LightColors
+            }
         }
-        darkTheme -> DarkColors
-        else -> LightColors
+        AppTheme.Green -> GreenColors
+        AppTheme.Orange -> OrangeColors
+        AppTheme.Blue -> BlueColors
+        AppTheme.Midnight -> MidnightColors
+        AppTheme.Teal -> TealColors
     }
 
     MaterialTheme(

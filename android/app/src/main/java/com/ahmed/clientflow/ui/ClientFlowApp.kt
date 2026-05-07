@@ -7,6 +7,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,6 +15,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -59,17 +61,22 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -123,8 +130,10 @@ import com.ahmed.clientflow.MainViewModel
 import com.ahmed.clientflow.ui.screen.BackupScreen
 import com.ahmed.clientflow.ui.screen.ExpenseFormScreen
 import com.ahmed.clientflow.ui.screen.ExpensesScreen
+import com.ahmed.clientflow.ui.component.PipelineRow
 import com.ahmed.clientflow.data.AppState
 import com.ahmed.clientflow.data.AppLanguage
+import com.ahmed.clientflow.data.AppTheme
 import com.ahmed.clientflow.data.AuthState
 import com.ahmed.clientflow.data.Booking
 import com.ahmed.clientflow.data.Client
@@ -157,6 +166,7 @@ sealed class BottomRoute(val route: String, val label: String) {
     data object Clients : BottomRoute("clients", "Clients")
     data object Bookings : BottomRoute("bookings", "Bookings")
     data object Revenue : BottomRoute("revenue", "Revenue")
+    data object Analytics : BottomRoute("analytics", "Analytics")
 }
 
 @Composable
@@ -180,7 +190,7 @@ fun ClientFlowApp(viewModel: MainViewModel) {
     when (uiState.authState) {
         AuthState.Setup -> SetupPinScreen(viewModel, language)
         AuthState.Locked -> LockScreen(viewModel, uiState.pinError, uiState.appState.biometricEnabled, language)
-        AuthState.Unlocked -> MainScaffold(viewModel, uiState.appState, snackbarHostState)
+        AuthState.Unlocked -> MainScaffold(viewModel, uiState.appState, uiState.deviceId, snackbarHostState)
     }
 }
 
@@ -265,7 +275,7 @@ private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, biometricEna
 }
 
 @Composable
-private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHostState: SnackbarHostState) {
+private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: String, snackbarHostState: SnackbarHostState) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route ?: BottomRoute.Home.route
@@ -274,12 +284,13 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
-                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue).forEach { route ->
+                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue, BottomRoute.Analytics).forEach { route ->
                     val icon = when (route) {
                         BottomRoute.Home -> Icons.Default.Home
                         BottomRoute.Clients -> Icons.Default.People
                         BottomRoute.Bookings -> Icons.Default.CalendarMonth
                         BottomRoute.Revenue -> Icons.Default.Shield
+                        BottomRoute.Analytics -> Icons.Default.Star
                     }
                     NavigationBarItem(
                         selected = currentRoute == route.route,
@@ -332,6 +343,12 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                 RevenueScreen(
                     state = state,
                     onOpenExpenses = { navController.navigate("expenses") }
+                )
+            }
+            composable(BottomRoute.Analytics.route) {
+                AnalyticsScreen(
+                    state = state,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("expenses") {
@@ -391,7 +408,9 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                         navController.popBackStack()
                     },
                     onDeleteBooking = viewModel::deleteBooking,
-                    onGenerateInvoice = viewModel::generateInvoice,
+                    onEditInvoice = { invoiceId -> navController.navigate("invoiceForm/$clientId?invoiceId=$invoiceId") },
+                    onDeleteInvoice = viewModel::deleteInvoice,
+                    onGenerateInvoice = { id, amount, desc -> viewModel.saveInvoice(null, id, amount, desc) },
                     onSaveTemplate = viewModel::saveTemplate,
                     onDeleteTemplate = viewModel::deleteTemplate
                 )
@@ -420,6 +439,22 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                     onSave = viewModel::saveBooking
                 )
             }
+            composable("invoiceForm/{clientId}?invoiceId={invoiceId}", arguments = listOf(
+                navArgument("clientId") { type = NavType.StringType },
+                navArgument("invoiceId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )) { entry ->
+                InvoiceFormScreen(
+                    state = state,
+                    clientId = entry.arguments?.getString("clientId").orEmpty(),
+                    invoiceId = entry.arguments?.getString("invoiceId"),
+                    onBack = { navController.popBackStack() },
+                    onSave = viewModel::saveInvoice
+                )
+            }
             composable("security") {
                 SecurityScreen(
                     language = state.language,
@@ -441,7 +476,8 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
                     onOpenSecurity = { navController.navigate("security") },
                     onOpenLicense = { navController.navigate("license") },
                     onOpenBackup = { navController.navigate("backup") },
-                    onSetLanguage = viewModel::setLanguage
+                    onSetLanguage = viewModel::setLanguage,
+                    onSetTheme = viewModel::setTheme
                 )
             }
             composable("backup") {
@@ -455,6 +491,7 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, snackbarHost
             composable("license") {
                 LicenseScreen(
                     state = state,
+                    deviceId = deviceId,
                     onBack = { navController.popBackStack() },
                     onActivate = { code, done -> viewModel.activatePro(code, done) }
                 )
@@ -517,6 +554,249 @@ private fun RevenueScreen(state: AppState, onOpenExpenses: () -> Unit) {
         item {
             OutlinedButton(onClick = onOpenExpenses, modifier = Modifier.fillMaxWidth()) {
                 Text("View All Expenses")
+            }
+        }
+    }
+}
+
+private enum class AnalyticsPeriod { ALL_TIME, THIS_MONTH, THIS_YEAR }
+
+@Composable
+private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
+    val language = state.language
+    var selectedPeriod by rememberSaveable { mutableStateOf(AnalyticsPeriod.ALL_TIME) }
+
+    val calendar = java.util.Calendar.getInstance()
+    val currentMonth = calendar.get(java.util.Calendar.MONTH)
+    val currentYear = calendar.get(java.util.Calendar.YEAR)
+
+    val filteredClients = state.clients.filter { client ->
+        when (selectedPeriod) {
+            AnalyticsPeriod.ALL_TIME -> true
+            AnalyticsPeriod.THIS_MONTH -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.MONTH) == currentMonth && createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+            AnalyticsPeriod.THIS_YEAR -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+        }
+    }
+
+    val filteredPayments = state.payments.filter { payment ->
+        val client = state.clients.find { it.id == payment.clientId } ?: return@filter false
+        when (selectedPeriod) {
+            AnalyticsPeriod.ALL_TIME -> true
+            AnalyticsPeriod.THIS_MONTH -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.MONTH) == currentMonth && createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+            AnalyticsPeriod.THIS_YEAR -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+        }
+    }
+
+    val filteredBookings = state.bookings.filter { booking ->
+        val client = state.clients.find { it.id == booking.clientId } ?: return@filter false
+        when (selectedPeriod) {
+            AnalyticsPeriod.ALL_TIME -> true
+            AnalyticsPeriod.THIS_MONTH -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.MONTH) == currentMonth && createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+            AnalyticsPeriod.THIS_YEAR -> {
+                val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
+                createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+        }
+    }
+
+    val totalRevenue = filteredPayments.sumOf { it.paidAmount }
+    val clientsWithPayments = filteredPayments.map { it.clientId }.distinct().size
+    val arpc = if (clientsWithPayments > 0) totalRevenue / clientsWithPayments else 0.0
+
+    val statusCounts = filteredClients.groupBy { it.status }.mapValues { it.value.size }
+    val totalClients = filteredClients.size.coerceAtLeast(1)
+    val convertedCount = statusCounts.filterKeys { it != ClientStatus.Lead }.values.sum()
+    val conversionRate = if (totalClients > 0) (convertedCount * 100 / totalClients) else 0
+
+    val completedClients = filteredClients.filter { it.status == ClientStatus.Completed || it.status == ClientStatus.Paid }
+    val clientBookingCounts = filteredBookings.groupBy { it.clientId }.mapValues { it.value.size }
+    val retainedClients = completedClients.count { clientBookingCounts[it.id] ?: 0 >= 2 }
+    val retentionRate = if (completedClients.isNotEmpty()) (retainedClients * 100 / completedClients.size) else 0
+
+    val pipelineValue = filteredPayments.sumOf { it.totalAmount }
+    val wonValue = filteredPayments.filter { it.status == PaymentStatus.Paid }.sumOf { it.totalAmount }
+    val wonPercent = if (pipelineValue > 0) (wonValue * 100 / pipelineValue).toInt() else 0
+
+    val statusColors = listOf(
+        Color(0xFF2196F3),
+        Color(0xFF00BCD4),
+        Color(0xFFFF9800),
+        Color(0xFF4CAF50),
+        Color(0xFF9C27B0)
+    )
+    val statusLabels = ClientStatus.entries.map { statusLabel(it, language) }
+
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(t("analytics", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FilterChip(
+                        selected = selectedPeriod == AnalyticsPeriod.ALL_TIME,
+                        onClick = { selectedPeriod = AnalyticsPeriod.ALL_TIME },
+                        label = { Text(t("all_time", language), style = MaterialTheme.typography.labelSmall) }
+                    )
+                    FilterChip(
+                        selected = selectedPeriod == AnalyticsPeriod.THIS_MONTH,
+                        onClick = { selectedPeriod = AnalyticsPeriod.THIS_MONTH },
+                        label = { Text(t("this_month", language), style = MaterialTheme.typography.labelSmall) }
+                    )
+                    FilterChip(
+                        selected = selectedPeriod == AnalyticsPeriod.THIS_YEAR,
+                        onClick = { selectedPeriod = AnalyticsPeriod.THIS_YEAR },
+                        label = { Text(t("this_year", language), style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+        }
+
+        if (filteredClients.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(t("no_analytics_data", language), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        } else {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("💰", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text("$${formatAmount(arpc)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(t("avg_revenue_per_client", language), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("📈", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text("$conversionRate%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(t("lead_to_booked", language), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("🔄", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text("$retentionRate%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(t("clients_returned", language), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("💼", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text("$${formatAmount(pipelineValue)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("$wonPercent% won", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(t("status_distribution", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal)
+                        Spacer(Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(150.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.size(120.dp)) {
+                                var startAngle = -90f
+                                val total = statusCounts.values.sum().toFloat().coerceAtLeast(1f)
+                                statusCounts.entries.sortedBy { it.key.ordinal }.forEachIndexed { index, (_, count) ->
+                                    val sweep = (count / total) * 360f
+                                    drawArc(
+                                        color = statusColors[index],
+                                        startAngle = startAngle,
+                                        sweepAngle = sweep,
+                                        useCenter = true
+                                    )
+                                    startAngle += sweep
+                                }
+                            }
+                            Column(modifier = Modifier.padding(start = 80.dp)) {
+                                statusLabels.forEachIndexed { index, label ->
+                                    val count = statusCounts[ClientStatus.entries[index]] ?: 0
+                                    val percent = if (totalClients > 0) (count * 100 / totalClients) else 0
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                                        Box(modifier = Modifier.size(8.dp).background(statusColors[index], CircleShape))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("$label: $count ($percent%)", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(t("pipeline_value", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(12.dp))
+                        val paymentColors = listOf(Color(0xFF4CAF50), Color(0xFFFF9800), Color(0xFFE53935))
+                        val paymentLabels = listOf("Paid", "Partial", "Unpaid")
+                        val paymentValues = listOf(
+                            filteredPayments.filter { it.status == PaymentStatus.Paid }.sumOf { it.totalAmount },
+                            filteredPayments.filter { it.status == PaymentStatus.Partial }.sumOf { it.totalAmount },
+                            filteredPayments.filter { it.status == PaymentStatus.Unpaid }.sumOf { it.totalAmount }
+                        )
+                        val maxVal = paymentValues.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+                        paymentValues.forEachIndexed { index, value ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(paymentLabels[index], modifier = Modifier.width(60.dp), style = MaterialTheme.typography.labelMedium)
+                                Box(modifier = Modifier.weight(1f).height(20.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(fraction = (value / maxVal).toFloat())
+                                            .height(20.dp)
+                                            .background(paymentColors[index])
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text("$${formatAmount(value)}", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -601,7 +881,8 @@ private fun SettingsScreen(
     onOpenSecurity: () -> Unit,
     onOpenLicense: () -> Unit,
     onOpenBackup: () -> Unit,
-    onSetLanguage: (AppLanguage) -> Unit
+    onSetLanguage: (AppLanguage) -> Unit,
+    onSetTheme: (AppTheme) -> Unit
 ) {
     FormScaffold(title = tr("settings", state.language), onBack = onBack) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -610,6 +891,13 @@ private fun SettingsScreen(
                     Text(tr("language", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(tr("language_desc", state.language), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     StatusLanguageChips(selected = state.language, onSelect = onSetLanguage)
+                }
+            }
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(tr("theme", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(tr("theme_desc", state.language), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    StatusThemeChips(selected = state.theme, language = state.language, onSelect = onSetTheme)
                 }
             }
             Card {
@@ -670,7 +958,7 @@ private fun ClientsScreen(
         SearchBar(search = search, onSearch = { search = it }, placeholder = tx("search_clients", language))
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                StatusFilters(selected = filter, onSelect = { filter = it })
+                StatusFilters(selected = filter, language = language, onSelect = { filter = it })
             }
             if (filtered.isEmpty()) item { EmptyCard(tx("no_clients_yet", language)) }
             items(filtered) { client ->
@@ -1083,6 +1371,53 @@ private fun ClientFormScreen(
 }
 
 @Composable
+private fun InvoiceFormScreen(
+    state: AppState,
+    clientId: String,
+    invoiceId: String?,
+    onBack: () -> Unit,
+    onSave: (String?, String, Double, String) -> Unit
+) {
+    val invoice = state.invoices.find { it.id == invoiceId }
+    val language = state.language
+    var amount by rememberSaveable { mutableStateOf(invoice?.amount?.toString() ?: "") }
+    var description by rememberSaveable { mutableStateOf(invoice?.description ?: "") }
+
+    FormScaffold(title = t("invoice", language), onBack = onBack) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it },
+                label = { Text(tx("total_amount", language)) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text(tx("service_type", language)) }, // Using service_type as a label for description
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3
+            )
+            Button(
+                onClick = {
+                    onSave(invoiceId, clientId, amount.toDoubleOrNull() ?: 0.0, description)
+                    onBack()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(tx("save", language))
+            }
+        }
+    }
+}
+
+@Composable
 private fun BookingFormScreen(
     state: AppState,
     clientId: String,
@@ -1155,6 +1490,8 @@ private fun ClientDetailScreen(
     onStatusChange: (ClientStatus) -> Unit,
     onDeleteClient: () -> Unit,
     onDeleteBooking: (String) -> Unit,
+    onEditInvoice: (String) -> Unit,
+    onDeleteInvoice: (String) -> Unit,
     onGenerateInvoice: (String, Double, String) -> Unit,
     onSaveTemplate: (String?, String, String, String) -> Unit,
     onDeleteTemplate: (String) -> Unit
@@ -1195,7 +1532,11 @@ private fun ClientDetailScreen(
             }
             item { SectionTitle(tx("pipeline", language)) }
             item {
-                PipelineRow(current = client.status, onSelect = onStatusChange)
+                PipelineRow(
+                    current = client.status.name,
+                    onSelect = { onStatusChange(ClientStatus.valueOf(it)) },
+                    language = language
+                )
             }
             item {
                 Card {
@@ -1246,6 +1587,8 @@ private fun ClientDetailScreen(
                             invoices.forEach { invoice ->
                                 InvoiceRow(
                                     invoice = invoice,
+                                    onEdit = { onEditInvoice(invoice.id) },
+                                    onDelete = { onDeleteInvoice(invoice.id) },
                                     onExportPdf = {
                                         val generator = com.ahmed.clientflow.pdf.InvoicePdfGenerator(context)
                                         val uri = generator.generatePdf(invoice, client, payment)
@@ -1390,7 +1733,7 @@ private fun SecurityScreen(
 }
 
 @Composable
-private fun LicenseScreen(state: AppState, onBack: () -> Unit, onActivate: (String, (Boolean) -> Unit) -> Unit) {
+private fun LicenseScreen(state: AppState, deviceId: String, onBack: () -> Unit, onActivate: (String, (Boolean) -> Unit) -> Unit) {
     val context = LocalContext.current
     val language = state.language
     var code by rememberSaveable { mutableStateOf("") }
@@ -1400,6 +1743,17 @@ private fun LicenseScreen(state: AppState, onBack: () -> Unit, onActivate: (Stri
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (state.isPro) tr("pro_active", language) else tr("free_plan", language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("${tx("free_limit", language)}: ${state.freeClientLimit}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    Text(
+                        "${tx("device_id", language)}: $deviceId",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(deviceId))
+                            Toast.makeText(context, tx("copied", language), Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             }
             Card(
@@ -1512,7 +1866,6 @@ private fun DatePickerField(
     onDateSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
     val calendar = remember(value) {
         Calendar.getInstance().apply {
             if (value.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
@@ -1527,11 +1880,10 @@ private fun DatePickerField(
         onValueChange = {},
         readOnly = true,
         label = { Text(label) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    focusManager.clearFocus()
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            IconButton(
+                onClick = {
                     DatePickerDialog(
                         context,
                         { _, year, month, dayOfMonth ->
@@ -1544,7 +1896,10 @@ private fun DatePickerField(
                         calendar.get(Calendar.DAY_OF_MONTH)
                     ).show()
                 }
+            ) {
+                Icon(Icons.Default.CalendarMonth, contentDescription = "Select date")
             }
+        }
     )
 }
 
@@ -1555,7 +1910,6 @@ private fun TimePickerField(
     onTimeSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
     val parts = value.split(":")
     val initialHour = parts.getOrNull(0)?.toIntOrNull() ?: 9
     val initialMinute = parts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -1565,11 +1919,10 @@ private fun TimePickerField(
         onValueChange = {},
         readOnly = true,
         label = { Text(label) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    focusManager.clearFocus()
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            IconButton(
+                onClick = {
                     TimePickerDialog(
                         context,
                         { _, hourOfDay, minute ->
@@ -1580,7 +1933,10 @@ private fun TimePickerField(
                         true
                     ).show()
                 }
+            ) {
+                Icon(Icons.Default.Schedule, contentDescription = "Select time")
             }
+        }
     )
 }
 
@@ -1613,21 +1969,81 @@ private fun RecurrenceDropdown(recurrence: RecurrenceType, language: AppLanguage
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StatusFilters(selected: String, onSelect: (String) -> Unit) {
+private fun StatusFilters(selected: String, language: AppLanguage, onSelect: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        (listOf("All") + ClientStatus.entries.map { it.name }).forEach {
-            AssistChip(onClick = { onSelect(it) }, label = { Text(it) })
+        AssistChip(
+            onClick = { onSelect("All") },
+            label = { Text(t("status_all", language)) },
+            border = if (selected == "All") BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+        )
+        ClientStatus.entries.forEach { status ->
+            AssistChip(
+                onClick = { onSelect(status.name) },
+                label = { Text(statusLabel(status, language)) },
+                border = if (selected == status.name) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+            )
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun StatusLanguageChips(selected: AppLanguage, onSelect: (AppLanguage) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AppLanguage.entries.forEach { language ->
-            AssistChip(onClick = { onSelect(language) }, label = { Text(languageLabel(language)) })
+            FilterChip(
+                selected = selected == language,
+                onClick = { onSelect(language) },
+                label = { Text(languageLabel(language)) }
+            )
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun StatusThemeChips(selected: AppTheme, language: AppLanguage, onSelect: (AppTheme) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppTheme.entries.forEach { theme ->
+            FilterChip(
+                selected = selected == theme,
+                onClick = { onSelect(theme) },
+                label = { Text(themeLabel(theme, language)) }
+            )
+        }
+    }
+}
+
+private fun themeLabel(theme: AppTheme, language: AppLanguage): String = when (theme) {
+    AppTheme.Default -> when (language) {
+        AppLanguage.English -> "Default"
+        AppLanguage.French -> "Par défaut"
+        AppLanguage.Arabic -> "الافتراضي"
+    }
+    AppTheme.Green -> when (language) {
+        AppLanguage.English -> "Nature Green"
+        AppLanguage.French -> "Vert Nature"
+        AppLanguage.Arabic -> "الأخضر"
+    }
+    AppTheme.Orange -> when (language) {
+        AppLanguage.English -> "Sunset Orange"
+        AppLanguage.French -> "Orange Sunset"
+        AppLanguage.Arabic -> "البرتقالي"
+    }
+    AppTheme.Blue -> when (language) {
+        AppLanguage.English -> "Classic Blue"
+        AppLanguage.French -> "Bleu Classique"
+        AppLanguage.Arabic -> "الأزرق"
+    }
+    AppTheme.Midnight -> when (language) {
+        AppLanguage.English -> "Midnight Gold"
+        AppLanguage.French -> "Minuit Or"
+        AppLanguage.Arabic -> "ذهبي"
+    }
+    AppTheme.Teal -> when (language) {
+        AppLanguage.English -> "Ocean Teal"
+        AppLanguage.French -> "Teal Océan"
+        AppLanguage.Arabic -> "تيال"
     }
 }
 
@@ -1669,7 +2085,7 @@ private fun ClientCard(client: Client, payment: Payment?, language: AppLanguage,
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(client.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                AssistChip(onClick = {}, label = { Text(client.status.name) })
+                AssistChip(onClick = {}, label = { Text(statusLabel(client.status, language)) })
             }
             Text(client.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (client.serviceType.isNotBlank()) Text(client.serviceType, color = MaterialTheme.colorScheme.primary)
@@ -1721,15 +2137,6 @@ private fun SummaryCard(total: Double, paid: Double, dueDate: String, language: 
 }
 
 @Composable
-private fun PipelineRow(current: ClientStatus, onSelect: (ClientStatus) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        pipeline.forEach { status ->
-            AssistChip(onClick = { onSelect(status) }, label = { Text(status.name) })
-        }
-    }
-}
-
-@Composable
 private fun BookingRowCompact(booking: Booking, language: AppLanguage, onEdit: () -> Unit, onDelete: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1745,7 +2152,12 @@ private fun BookingRowCompact(booking: Booking, language: AppLanguage, onEdit: (
 }
 
 @Composable
-private fun InvoiceRow(invoice: Invoice, onExportPdf: () -> Unit) {
+private fun InvoiceRow(
+    invoice: Invoice,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onExportPdf: () -> Unit
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -1755,6 +2167,8 @@ private fun InvoiceRow(invoice: Invoice, onExportPdf: () -> Unit) {
             Text(formatDateHuman(invoice.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text("$${invoice.amount}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, null, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, null, modifier = Modifier.size(20.dp)) }
         IconButton(onClick = onExportPdf) {
             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Export PDF", modifier = Modifier.size(20.dp))
         }
@@ -1898,6 +2312,14 @@ private fun paymentStatusText(total: Double, paid: Double): String = when {
     else -> "Partial"
 }
 
+private fun statusLabel(status: ClientStatus, language: AppLanguage): String = when (status) {
+    ClientStatus.Lead -> t("status_lead", language)
+    ClientStatus.Quoted -> t("status_quoted", language)
+    ClientStatus.Booked -> t("status_booked", language)
+    ClientStatus.Completed -> t("status_completed", language)
+    ClientStatus.Paid -> t("status_paid", language)
+}
+
 private fun paymentStatusLabel(status: PaymentStatus, language: AppLanguage): String = when (status) {
     PaymentStatus.Unpaid -> t("unpaid", language)
     PaymentStatus.Partial -> t("partial", language)
@@ -2032,6 +2454,16 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Contacter pour code activation"
         AppLanguage.Arabic -> "تواصل للحصول على الرمز"
     }
+    "theme" -> when (language) {
+        AppLanguage.English -> "App Theme"
+        AppLanguage.French -> "Theme"
+        AppLanguage.Arabic -> "سمة التطبيق"
+    }
+    "theme_desc" -> when (language) {
+        AppLanguage.English -> "Choose app color theme."
+        AppLanguage.French -> "Choisir le theme de couleur."
+        AppLanguage.Arabic -> "اختر سمة ألوان التطبيق."
+    }
     else -> key
 }
 
@@ -2045,6 +2477,76 @@ private fun t(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Revenue"
         AppLanguage.French -> "Revenus"
         AppLanguage.Arabic -> "الايرادات"
+    }
+    "analytics" -> when (language) {
+        AppLanguage.English -> "Analytics"
+        AppLanguage.French -> "Analytique"
+        AppLanguage.Arabic -> "التحليلات"
+    }
+    "avg_revenue_per_client" -> when (language) {
+        AppLanguage.English -> "Avg Revenue/Client"
+        AppLanguage.French -> "Revenu moy/client"
+        AppLanguage.Arabic -> "متوسط الإيرادات/عميل"
+    }
+    "conversion_rate" -> when (language) {
+        AppLanguage.English -> "Conversion"
+        AppLanguage.French -> "Conversion"
+        AppLanguage.Arabic -> "معدل التحويل"
+    }
+    "retention" -> when (language) {
+        AppLanguage.English -> "Retention"
+        AppLanguage.French -> "Retention"
+        AppLanguage.Arabic -> "الاحتفاظ"
+    }
+    "pipeline_value" -> when (language) {
+        AppLanguage.English -> "Pipeline Value"
+        AppLanguage.French -> "Valeur pipeline"
+        AppLanguage.Arabic -> "قيمة المسار"
+    }
+    "all_time" -> when (language) {
+        AppLanguage.English -> "All Time"
+        AppLanguage.French -> "Tout"
+        AppLanguage.Arabic -> "كل الأوقات"
+    }
+    "this_month" -> when (language) {
+        AppLanguage.English -> "This Month"
+        AppLanguage.French -> "Ce mois"
+        AppLanguage.Arabic -> "هذا الشهر"
+    }
+    "this_year" -> when (language) {
+        AppLanguage.English -> "This Year"
+        AppLanguage.French -> "Cette annee"
+        AppLanguage.Arabic -> "هذه السنة"
+    }
+    "status_distribution" -> when (language) {
+        AppLanguage.English -> "Status Distribution"
+        AppLanguage.French -> "Repartition statut"
+        AppLanguage.Arabic -> "توزيع الحالة"
+    }
+    "no_analytics_data" -> when (language) {
+        AppLanguage.English -> "No clients yet - Add clients to see analytics"
+        AppLanguage.French -> "Pas encore de clients - Ajoutez des clients pour voir les analyses"
+        AppLanguage.Arabic -> "لا يوجد عملاء بعد - أضف عملاء لرؤية التحليلات"
+    }
+    "returned" -> when (language) {
+        AppLanguage.English -> "returned"
+        AppLanguage.French -> "revenu"
+        AppLanguage.Arabic -> "عاد"
+    }
+    "per_client" -> when (language) {
+        AppLanguage.English -> "per client"
+        AppLanguage.French -> "par client"
+        AppLanguage.Arabic -> "لكل عميل"
+    }
+    "lead_to_booked" -> when (language) {
+        AppLanguage.English -> "Lead to Booked"
+        AppLanguage.French -> "Prospect -> Reserve"
+        AppLanguage.Arabic -> "محتمل -> محجوز"
+    }
+    "clients_returned" -> when (language) {
+        AppLanguage.English -> "clients returned"
+        AppLanguage.French -> "clients revenus"
+        AppLanguage.Arabic -> "عملاء عادوا"
     }
     "overdue" -> when (language) {
         AppLanguage.English -> "Overdue"
@@ -2394,6 +2896,11 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Reservations"
         AppLanguage.Arabic -> "المواعيد"
     }
+    "invoice" -> when (language) {
+        AppLanguage.English -> "Invoice"
+        AppLanguage.French -> "Facture"
+        AppLanguage.Arabic -> "فاتورة"
+    }
     "add_booking" -> when (language) {
         AppLanguage.English -> "Add booking"
         AppLanguage.French -> "Ajouter reservation"
@@ -2403,6 +2910,36 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Invoices"
         AppLanguage.French -> "Factures"
         AppLanguage.Arabic -> "الفواتير"
+    }
+    "status_all" -> when (language) {
+        AppLanguage.English -> "All"
+        AppLanguage.French -> "Tout"
+        AppLanguage.Arabic -> "الكل"
+    }
+    "status_lead" -> when (language) {
+        AppLanguage.English -> "Lead"
+        AppLanguage.French -> "Prospect"
+        AppLanguage.Arabic -> "عميل محتمل"
+    }
+    "status_quoted" -> when (language) {
+        AppLanguage.English -> "Quoted"
+        AppLanguage.French -> "Devis envoyé"
+        AppLanguage.Arabic -> "تم تقديم عرض"
+    }
+    "status_booked" -> when (language) {
+        AppLanguage.English -> "Booked"
+        AppLanguage.French -> "Réservé"
+        AppLanguage.Arabic -> "محجوز"
+    }
+    "status_completed" -> when (language) {
+        AppLanguage.English -> "Completed"
+        AppLanguage.French -> "Terminé"
+        AppLanguage.Arabic -> "مكتمل"
+    }
+    "status_paid" -> when (language) {
+        AppLanguage.English -> "Paid"
+        AppLanguage.French -> "Payé"
+        AppLanguage.Arabic -> "مدفوع"
     }
     "service" -> when (language) {
         AppLanguage.English -> "Service"
@@ -2483,6 +3020,16 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Activate"
         AppLanguage.French -> "Activer"
         AppLanguage.Arabic -> "تفعيل"
+    }
+    "device_id" -> when (language) {
+        AppLanguage.English -> "Device ID"
+        AppLanguage.French -> "ID Appareil"
+        AppLanguage.Arabic -> "معرف الجهاز"
+    }
+    "copied" -> when (language) {
+        AppLanguage.English -> "Copied to clipboard"
+        AppLanguage.French -> "Copie dans le presse-papiers"
+        AppLanguage.Arabic -> "تم النسخ"
     }
     "contact_email" -> when (language) {
         AppLanguage.English -> "k.ahmed.lara@gmail.com"

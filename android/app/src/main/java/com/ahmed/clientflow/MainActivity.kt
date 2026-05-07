@@ -32,7 +32,10 @@ class MainActivity : AppCompatActivity() {
         
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            ClientFlowTheme {
+            ClientFlowTheme(
+                darkThemeMode = uiState.appState.darkThemeMode,
+                appTheme = uiState.appState.theme
+            ) {
                 ClientFlowApp(viewModel = viewModel)
             }
         }

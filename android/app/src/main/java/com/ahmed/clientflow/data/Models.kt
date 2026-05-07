@@ -125,7 +125,8 @@ data class AppState(
     val darkThemeMode: DarkThemeMode = DarkThemeMode.System,
     val currencySymbol: String = "$",
     val currencyCode: String = "USD",
-    val lastBackupTime: Long? = null
+    val lastBackupTime: Long? = null,
+    val theme: AppTheme = AppTheme.Default
 )
 
 @Serializable
@@ -142,6 +143,9 @@ enum class RecurrenceType { None, Daily, Weekly, Monthly }
 
 @Serializable
 enum class DarkThemeMode { System, Light, Dark }
+
+@Serializable
+enum class AppTheme { Default, Green, Orange, Blue, Midnight, Teal }
 
 fun computePaymentStatus(total: Double, paid: Double): PaymentStatus = when {
     paid <= 0 -> PaymentStatus.Unpaid
