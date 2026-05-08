@@ -2897,6 +2897,56 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Choisir le theme de couleur."
         AppLanguage.Arabic -> "اختر سمة ألوان التطبيق."
     }
+    "preferences" -> when (language) {
+        AppLanguage.English -> "Preferences"
+        AppLanguage.French -> "Preferences"
+        AppLanguage.Arabic -> "التفضيلات"
+    }
+    "account_section" -> when (language) {
+        AppLanguage.English -> "Account"
+        AppLanguage.French -> "Compte"
+        AppLanguage.Arabic -> "الحساب"
+    }
+    "security_desc" -> when (language) {
+        AppLanguage.English -> "PIN lock enabled. Data stays local on device."
+        AppLanguage.French -> "Verrou PIN actif. Donnees restent locales."
+        AppLanguage.Arabic -> "قفل PIN مفعل. البيانات تبقى محلية على الجهاز."
+    }
+    "invoice_profile" -> when (language) {
+        AppLanguage.English -> "Invoice Profile"
+        AppLanguage.French -> "Profil Facture"
+        AppLanguage.Arabic -> "الملف التعريفي للفاتورة"
+    }
+    "invoice_profile_desc" -> when (language) {
+        AppLanguage.English -> "Set default info for invoices"
+        AppLanguage.French -> "Definir infos par defaut factures"
+        AppLanguage.Arabic -> "تعيين المعلومات الافتراضية للفواتير"
+    }
+    "data_section" -> when (language) {
+        AppLanguage.English -> "Data"
+        AppLanguage.French -> "Donnees"
+        AppLanguage.Arabic -> "البيانات"
+    }
+    "backup_restore" -> when (language) {
+        AppLanguage.English -> "Backup & Restore"
+        AppLanguage.French -> "Sauvegarde et Restauration"
+        AppLanguage.Arabic -> "النسخ الاحتياطي والاستعادة"
+    }
+    "backup_restore_desc" -> when (language) {
+        AppLanguage.English -> "Export or restore app data"
+        AppLanguage.French -> "Exporter ou restaurer donnees"
+        AppLanguage.Arabic -> "تصدير أو استعادة بيانات التطبيق"
+    }
+    "subscription_section" -> when (language) {
+        AppLanguage.English -> "Subscription"
+        AppLanguage.French -> "Abonnement"
+        AppLanguage.Arabic -> "الاشتراك"
+    }
+    "about_section" -> when (language) {
+        AppLanguage.English -> "About"
+        AppLanguage.French -> "A propos"
+        AppLanguage.Arabic -> "حول"
+    }
     else -> key
 }
 
@@ -3424,6 +3474,11 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Reinitialiser PIN"
         AppLanguage.Arabic -> "إعادة تعيين PIN"
     }
+    "use_fingerprint" -> when (language) {
+        AppLanguage.English -> "Use fingerprint"
+        AppLanguage.French -> "Utiliser empreinte digitale"
+        AppLanguage.Arabic -> "استخدام بصمة الإصبع"
+    }
     "upgrade" -> when (language) {
         AppLanguage.English -> "Upgrade"
         AppLanguage.French -> "Mise a niveau"
@@ -3578,6 +3633,21 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Tap for quick details"
         AppLanguage.French -> "Touchez pour details rapides"
         AppLanguage.Arabic -> "اضغط للتفاصيل السريعة"
+    }
+    "invoice_profile" -> when (language) {
+        AppLanguage.English -> "Invoice Profile"
+        AppLanguage.French -> "Profil Facture"
+        AppLanguage.Arabic -> "الملف التعريفي للفاتورة"
+    }
+    "developer_name" -> when (language) {
+        AppLanguage.English -> "Ahmed Laraichi"
+        AppLanguage.French -> "Ahmed Laraichi"
+        AppLanguage.Arabic -> "أحمد لعريشي"
+    }
+    "developer_role" -> when (language) {
+        AppLanguage.English -> "Mobile Developer"
+        AppLanguage.French -> "Developpeur Mobile"
+        AppLanguage.Arabic -> "مطور تطبيقات"
     }
     else -> key
 }
