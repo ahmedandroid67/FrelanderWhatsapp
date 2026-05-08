@@ -1,5 +1,6 @@
 package com.ahmed.clientflow.data
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.tasks.await
@@ -12,6 +13,7 @@ object FirestoreHelper {
         return try {
             val snapshot = db.collection(ACTIVATIONS_COLLECTION)
                 .whereEqualTo("code", code.uppercase())
+                .whereEqualTo("used", false)
                 .get()
                 .await()
 
@@ -20,23 +22,15 @@ object FirestoreHelper {
             }
 
             val doc = snapshot.documents.first()
-            val isUsed = doc.getBoolean("used") ?: false
-            val activatedDeviceId = doc.getString("activatedDeviceId")
+            val docRef = db.collection(ACTIVATIONS_COLLECTION).document(doc.id)
 
-            if (isUsed && activatedDeviceId != deviceId) {
-                return ActivationResult.Error("Code already used by another device")
-            }
-
-            if (!isUsed || activatedDeviceId != deviceId) {
-                val docRef = db.collection(ACTIVATIONS_COLLECTION).document(doc.id)
-                docRef.update(
-                    mapOf(
-                        "used" to true,
-                        "usedAt" to com.google.firebase.Timestamp.now(),
-                        "activatedDeviceId" to deviceId
-                    )
-                ).await()
-            }
+            docRef.update(
+                mapOf(
+                    "used" to true,
+                    "usedAt" to Timestamp.now(),
+                    "activatedDeviceId" to deviceId
+                )
+            ).await()
 
             ActivationResult.Success
         } catch (e: FirebaseFirestoreException) {

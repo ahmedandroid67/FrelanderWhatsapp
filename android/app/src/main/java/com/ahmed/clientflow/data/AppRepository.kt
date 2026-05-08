@@ -114,17 +114,16 @@ class AppRepository(private val context: Context) {
         return id
     }
 
-    suspend fun activatePro(code: String): Boolean {
+    suspend fun activatePro(code: String): ActivationResult {
         val deviceId = getDeviceId()
         val normalized = code.trim().replace("-", "").replace(" ", "").uppercase()
 
-        val result = FirestoreHelper.activateCode(normalized, deviceId)
-        return when (result) {
+        return when (val result = FirestoreHelper.activateCode(normalized, deviceId)) {
             is ActivationResult.Success -> {
                 updateState { it.copy(isPro = true) }
-                true
+                ActivationResult.Success
             }
-            else -> false
+            else -> result
         }
     }
 }

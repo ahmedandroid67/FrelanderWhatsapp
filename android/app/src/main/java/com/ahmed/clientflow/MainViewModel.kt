@@ -8,6 +8,7 @@ import com.ahmed.clientflow.data.AppRepository
 import com.ahmed.clientflow.data.AppLanguage
 import com.ahmed.clientflow.data.AppState
 import com.ahmed.clientflow.data.AppTheme
+import com.ahmed.clientflow.data.ActivationResult
 import com.ahmed.clientflow.data.AuthState
 import com.ahmed.clientflow.data.Booking
 import com.ahmed.clientflow.data.Client
@@ -16,6 +17,7 @@ import com.ahmed.clientflow.data.ClientStatus
 import com.ahmed.clientflow.data.DarkThemeMode
 import com.ahmed.clientflow.data.Expense
 import com.ahmed.clientflow.data.ExpenseCategory
+import com.ahmed.clientflow.data.FreelancerInfo
 import com.ahmed.clientflow.data.Invoice
 import com.ahmed.clientflow.data.MessageLog
 import com.ahmed.clientflow.data.MessageTemplate
@@ -37,12 +39,14 @@ data class UiState(
     val authState: AuthState = AuthState.Setup,
     val pinError: Boolean = false,
     val exportPayload: String? = null,
-    val deviceId: String = ""
+    val deviceId: String = "",
+    val activationMessage: String? = null
 )
 
 class MainViewModel(private val repository: AppRepository) : ViewModel() {
     private val pinError = MutableStateFlow(false)
     private val exportPayload = MutableStateFlow<String?>(null)
+    private val activationMessage = MutableStateFlow<String?>(null)
 
     val deviceId = MutableStateFlow("")
 
@@ -56,14 +60,16 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         repository.appState,
         repository.authState,
         pinError,
-        exportPayload
-    ) { appState, authState, pinErrorState, export ->
+        exportPayload,
+        activationMessage
+    ) { appState, authState, pinErrorState, export, activationMessageState ->
         UiState(
             appState = appState,
             authState = authState,
             pinError = pinErrorState,
             exportPayload = export,
-            deviceId = deviceId.value
+            deviceId = deviceId.value,
+            activationMessage = activationMessageState
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
 
@@ -96,8 +102,25 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         repository.updateState { it.copy(biometricEnabled = false) }
     }
 
-    fun activatePro(code: String, onDone: (Boolean) -> Unit) = viewModelScope.launch {
-        onDone(repository.activatePro(code))
+    fun activatePro(code: String, onDone: (Boolean, String?) -> Unit) = viewModelScope.launch {
+        when (val result = repository.activatePro(code)) {
+            is ActivationResult.Success -> {
+                activationMessage.value = null
+                onDone(true, null)
+            }
+            is ActivationResult.CodeNotFound -> {
+                activationMessage.value = "Activation code not found"
+                onDone(false, activationMessage.value)
+            }
+            is ActivationResult.Error -> {
+                activationMessage.value = result.message
+                onDone(false, result.message)
+            }
+        }
+    }
+
+    fun clearActivationMessage() {
+        activationMessage.value = null
     }
 
     fun dismissExport() {
@@ -110,6 +133,32 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
 
     fun setTheme(theme: AppTheme) = viewModelScope.launch {
         repository.updateState { it.copy(theme = theme) }
+    }
+
+    fun saveFreelancerInfo(
+        companyName: String,
+        address: String,
+        phone: String,
+        email: String,
+        ice: String,
+        logoUri: String,
+        accentColor: String,
+        invoiceNote: String
+    ) = viewModelScope.launch {
+        repository.updateState {
+            it.copy(
+                freelancerInfo = FreelancerInfo(
+                    companyName = companyName.trim(),
+                    address = address.trim(),
+                    phone = phone.trim(),
+                    email = email.trim(),
+                    ice = ice.trim(),
+                    logoUri = logoUri.trim(),
+                    accentColor = accentColor.trim().ifBlank { "#1F4B99" },
+                    invoiceNote = invoiceNote.trim()
+                )
+            )
+        }
     }
 
     fun exportData() {

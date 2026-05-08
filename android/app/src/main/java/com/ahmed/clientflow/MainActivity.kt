@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.work.Constraints
@@ -17,7 +17,7 @@ import com.ahmed.clientflow.ui.ClientFlowApp
 import com.ahmed.clientflow.ui.theme.ClientFlowTheme
 import java.util.concurrent.TimeUnit
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : FragmentActivity() {
     private val viewModel: MainViewModel by viewModels {
         MainViewModel.Factory(applicationContext)
     }

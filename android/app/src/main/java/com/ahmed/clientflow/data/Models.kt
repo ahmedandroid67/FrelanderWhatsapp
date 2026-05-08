@@ -47,6 +47,18 @@ data class Invoice(
 )
 
 @Serializable
+data class FreelancerInfo(
+    val companyName: String = "",
+    val address: String = "",
+    val phone: String = "",
+    val email: String = "",
+    val ice: String = "",
+    val logoUri: String = "",
+    val accentColor: String = "#1F4B99",
+    val invoiceNote: String = ""
+)
+
+@Serializable
 data class Expense(
     val id: String = randomId(),
     val clientId: String? = null,
@@ -125,6 +137,7 @@ data class AppState(
     val darkThemeMode: DarkThemeMode = DarkThemeMode.System,
     val currencySymbol: String = "$",
     val currencyCode: String = "USD",
+    val freelancerInfo: FreelancerInfo = FreelancerInfo(),
     val lastBackupTime: Long? = null,
     val theme: AppTheme = AppTheme.Default
 )

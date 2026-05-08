@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
@@ -63,6 +64,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -83,6 +85,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -103,6 +106,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.ContentScale
@@ -145,6 +149,7 @@ import com.ahmed.clientflow.data.MessageTemplate
 import com.ahmed.clientflow.data.Payment
 import com.ahmed.clientflow.data.PaymentStatus
 import com.ahmed.clientflow.data.RecurrenceType
+import com.ahmed.clientflow.data.FreelancerInfo
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -283,7 +288,11 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            NavigationBar {
+            val navGold = Color(0xFFF5C518)
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                tonalElevation = 0.dp
+            ) {
                 listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue, BottomRoute.Analytics).forEach { route ->
                     val icon = when (route) {
                         BottomRoute.Home -> Icons.Default.Home
@@ -292,11 +301,27 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                         BottomRoute.Revenue -> Icons.Default.Shield
                         BottomRoute.Analytics -> Icons.Default.Star
                     }
+                    val sel = currentRoute == route.route
                     NavigationBarItem(
-                        selected = currentRoute == route.route,
+                        selected = sel,
                         onClick = { navController.navigate(route.route) { launchSingleTop = true } },
-                        icon = { Icon(icon, null) },
-                        label = { Text(route.label) }
+                        icon = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(icon, null)
+                                if (sel) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Box(Modifier.size(5.dp).background(navGold, CircleShape))
+                                }
+                            }
+                        },
+                        label = { Text(route.label, style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = navGold,
+                            selectedTextColor = navGold,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = navGold.copy(alpha = 0.10f)
+                        )
                     )
                 }
             }
@@ -476,6 +501,7 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                     onOpenSecurity = { navController.navigate("security") },
                     onOpenLicense = { navController.navigate("license") },
                     onOpenBackup = { navController.navigate("backup") },
+                    onOpenFreelancerInfo = { navController.navigate("freelancerInfo") },
                     onSetLanguage = viewModel::setLanguage,
                     onSetTheme = viewModel::setTheme
                 )
@@ -493,7 +519,15 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                     state = state,
                     deviceId = deviceId,
                     onBack = { navController.popBackStack() },
-                    onActivate = { code, done -> viewModel.activatePro(code, done) }
+                    onActivate = { code, done -> viewModel.activatePro(code) { success, _ -> done(success) } }
+                )
+            }
+            composable("freelancerInfo") {
+                FreelancerInfoScreen(
+                    freelancerInfo = state.freelancerInfo,
+                    language = state.language,
+                    onBack = { navController.popBackStack() },
+                    onSave = viewModel::saveFreelancerInfo
                 )
             }
         }
@@ -727,36 +761,51 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
             }
 
             item {
-                Card {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF17171D))
+                ) {
                     Column(Modifier.padding(16.dp)) {
                         Text(t("status_distribution", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal)
-                        Spacer(Modifier.height(16.dp))
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(150.dp),
-                            contentAlignment = Alignment.Center
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Canvas(modifier = Modifier.size(120.dp)) {
-                                var startAngle = -90f
-                                val total = statusCounts.values.sum().toFloat().coerceAtLeast(1f)
-                                statusCounts.entries.sortedBy { it.key.ordinal }.forEachIndexed { index, (_, count) ->
-                                    val sweep = (count / total) * 360f
-                                    drawArc(
-                                        color = statusColors[index],
-                                        startAngle = startAngle,
-                                        sweepAngle = sweep,
-                                        useCenter = true
-                                    )
-                                    startAngle += sweep
-                                }
-                            }
-                            Column(modifier = Modifier.padding(start = 80.dp)) {
+                            Column(
+                                modifier = Modifier.weight(0.4f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 statusLabels.forEachIndexed { index, label ->
                                     val count = statusCounts[ClientStatus.entries[index]] ?: 0
                                     val percent = if (totalClients > 0) (count * 100 / totalClients) else 0
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(modifier = Modifier.size(8.dp).background(statusColors[index], CircleShape))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF6E6E80))
                                         Spacer(Modifier.width(4.dp))
-                                        Text("$label: $count ($percent%)", style = MaterialTheme.typography.labelSmall)
+                                        Text("$percent%", style = MaterialTheme.typography.labelSmall, color = Color(0xFFF0F0F4))
+                                    }
+                                }
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.6f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(modifier = Modifier.size(100.dp)) {
+                                    var startAngle = -90f
+                                    val total = statusCounts.values.sum().toFloat().coerceAtLeast(1f)
+                                    statusCounts.entries.sortedBy { it.key.ordinal }.forEachIndexed { index, (_, count) ->
+                                        val sweep = (count / total) * 360f
+                                        drawArc(
+                                            color = statusColors[index],
+                                            startAngle = startAngle,
+                                            sweepAngle = sweep,
+                                            useCenter = true
+                                        )
+                                        startAngle += sweep
                                     }
                                 }
                             }
@@ -881,57 +930,261 @@ private fun SettingsScreen(
     onOpenSecurity: () -> Unit,
     onOpenLicense: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenFreelancerInfo: () -> Unit,
     onSetLanguage: (AppLanguage) -> Unit,
     onSetTheme: (AppTheme) -> Unit
 ) {
-    FormScaffold(title = tr("settings", state.language), onBack = onBack) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("language", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(tr("language_desc", state.language), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    StatusLanguageChips(selected = state.language, onSelect = onSetLanguage)
+    val context = LocalContext.current
+    val language = state.language
+    val accentGold = Color(0xFFF5C518)
+    FormScaffold(title = tr("settings", language), onBack = onBack) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // ── PREFERENCES ──
+            SettingsSectionLabel(tr("preferences", language))
+            SettingsAnimatedCard(0) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(tr("language", language), style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    SettingsLanguagePills(selected = state.language, onSelect = onSetLanguage)
+                    Spacer(Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    Spacer(Modifier.height(14.dp))
+                    Text(tr("theme", language), style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    SettingsThemeSwatches(selected = state.theme, language = language, onSelect = onSetTheme)
                 }
             }
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("theme", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(tr("theme_desc", state.language), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    StatusThemeChips(selected = state.theme, language = state.language, onSelect = onSetTheme)
+            // ── ACCOUNT ──
+            SettingsSectionLabel(tr("account_section", language))
+            SettingsAnimatedCard(1) {
+                Column {
+                    SettingsGroupRow(emoji = "\uD83D\uDEE1\uFE0F", iconTint = Color(0xFF4CAF50),
+                        title = tr("security", language), subtitle = tr("security_desc", language), onClick = onOpenSecurity)
+                    HorizontalDivider(modifier = Modifier.padding(start = 66.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    SettingsGroupRow(emoji = "\uD83E\uDDFE", iconTint = Color(0xFFFF9800),
+                        title = tr("invoice_profile", language), subtitle = tr("invoice_profile_desc", language), onClick = onOpenFreelancerInfo)
                 }
             }
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("security", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    OutlinedButton(onClick = onOpenSecurity, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Shield, null)
-                        Spacer(Modifier.size(8.dp))
-                        Text(tr("open_security", state.language))
+            // ── DATA ──
+            SettingsSectionLabel(tr("data_section", language))
+            SettingsAnimatedCard(2) {
+                SettingsGroupRow(emoji = "\uD83D\uDCBE", iconTint = Color(0xFF2196F3),
+                    title = tr("backup_restore", language), subtitle = tr("backup_restore_desc", language), onClick = onOpenBackup)
+            }
+            // ── SUBSCRIPTION ──
+            SettingsSectionLabel(tr("subscription_section", language))
+            SettingsAnimatedCard(3) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF1a1a08), Color(0xFF1f1f0a))),
+                            RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Star, null, tint = accentGold, modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(if (state.isPro) "Pro Plan" else tr("free_plan", language),
+                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = accentGold)
+                            Spacer(Modifier.height(4.dp))
+                            if (state.isPro) {
+                                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF22C55E).copy(alpha = 0.18f)) {
+                                    Text("Active", modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF22C55E))
+                                }
+                            } else {
+                                Text(tr("manage_plan", language), style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.6f))
+                            }
+                        }
+                        if (!state.isPro) {
+                            Surface(onClick = onOpenLicense, shape = RoundedCornerShape(14.dp), color = accentGold) {
+                                Text(tx("upgrade", language), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    fontWeight = FontWeight.Bold, color = Color.Black, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
                     }
                 }
             }
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Backup & Restore", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Export or import your data", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = onOpenBackup, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.AutoMirrored.Filled.Send, null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Open Backup")
+            // ── ABOUT ──
+            SettingsSectionLabel(tr("about_section", language))
+            SettingsAnimatedCard(4) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                        Box(modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            Text("AL", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text(tx("developer_name", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(tx("developer_role", language), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    SettingsContactRow(emoji = "\uD83D\uDCE7", iconTint = Color(0xFFE53935),
+                        label = tx("contact_email", language),
+                        onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO).apply { data = Uri.parse("mailto:k.ahmed.lara@gmail.com") }) })
+                    HorizontalDivider(modifier = Modifier.padding(start = 54.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    SettingsContactRow(emoji = "\uD83D\uDCAC", iconTint = Color(0xFF25D366),
+                        label = tx("contact_whatsapp", language),
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://wa.me/212666289222") }) })
+                    HorizontalDivider(modifier = Modifier.padding(start = 54.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    SettingsContactRow(emoji = "\uD83C\uDF10", iconTint = Color(0xFF1565C0),
+                        label = tx("contact_website", language),
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW).apply { data = Uri.parse("https://laaraichi.com") }) })
                 }
             }
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("plan", state.language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(
-                        if (state.isPro) tr("pro_active", state.language) else tr("free_plan", state.language),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedButton(onClick = onOpenLicense, modifier = Modifier.fillMaxWidth()) {
-                        Text(tr("manage_plan", state.language))
-                    }
-                }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun FreelancerInfoScreen(
+    freelancerInfo: FreelancerInfo,
+    language: AppLanguage,
+    onBack: () -> Unit,
+    onSave: (String, String, String, String, String, String, String, String) -> Unit
+) {
+    var companyName by rememberSaveable { mutableStateOf(freelancerInfo.companyName) }
+    var address by rememberSaveable { mutableStateOf(freelancerInfo.address) }
+    var phone by rememberSaveable { mutableStateOf(freelancerInfo.phone) }
+    var email by rememberSaveable { mutableStateOf(freelancerInfo.email) }
+    var ice by rememberSaveable { mutableStateOf(freelancerInfo.ice) }
+    var logoUri by rememberSaveable { mutableStateOf(freelancerInfo.logoUri) }
+    var accentColor by rememberSaveable { mutableStateOf(freelancerInfo.accentColor) }
+    var invoiceNote by rememberSaveable { mutableStateOf(freelancerInfo.invoiceNote) }
+
+    FormScaffold(title = tx("invoice_profile", language), onBack = onBack) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(companyName, { companyName = it }, label = { Text(tx("company_name", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(address, { address = it }, label = { Text(tx("address", language)) }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+            OutlinedTextField(phone, { phone = it }, label = { Text(tx("phone", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+            OutlinedTextField(email, { email = it }, label = { Text(tx("email", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+            OutlinedTextField(ice, { ice = it }, label = { Text(tx("ice", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(logoUri, { logoUri = it }, label = { Text(tx("logo_url", language)) }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+            OutlinedTextField(accentColor, { accentColor = it }, label = { Text(tx("accent_color", language)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(invoiceNote, { invoiceNote = it }, label = { Text(tx("invoice_note", language)) }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+            Button(onClick = {
+                onSave(companyName, address, phone, email, ice, logoUri, accentColor, invoiceNote)
+                onBack()
+            }, modifier = Modifier.fillMaxWidth()) { Text(tx("save", language)) }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+private fun SettingsAnimatedCard(index: Int, content: @Composable () -> Unit) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(index * 60L); visible = true }
+    AnimatedVisibility(visible = visible, enter = fadeIn(tween(320)) + slideInVertically(tween(320)) { it / 3 }) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth()
+        ) { content() }
+    }
+}
+
+@Composable
+private fun SettingsGroupRow(emoji: String, iconTint: Color, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(modifier = Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(iconTint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center) {
+            Text(emoji, style = MaterialTheme.typography.bodyLarge)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun SettingsContactRow(emoji: String, iconTint: Color, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(modifier = Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(iconTint.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center) {
+            Text(emoji, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SettingsLanguagePills(selected: AppLanguage, onSelect: (AppLanguage) -> Unit) {
+    val gold = Color(0xFFF5C518)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppLanguage.entries.forEach { lang ->
+            val sel = selected == lang
+            Surface(onClick = { onSelect(lang) }, shape = RoundedCornerShape(50),
+                color = if (sel) gold else Color.Transparent,
+                border = BorderStroke(1.dp, if (sel) gold else MaterialTheme.colorScheme.outlineVariant)) {
+                Text(languageLabel(lang), modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                    color = if (sel) Color.Black else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsThemeSwatches(selected: AppTheme, language: AppLanguage, onSelect: (AppTheme) -> Unit) {
+    val colors = mapOf(
+        AppTheme.Default to Color(0xFF2563EB), AppTheme.Green to Color(0xFF1B5E20),
+        AppTheme.Orange to Color(0xFFE65100), AppTheme.Blue to Color(0xFF1A237E),
+        AppTheme.Midnight to Color(0xFFFFD700), AppTheme.Teal to Color(0xFF00695C)
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        AppTheme.entries.forEach { theme ->
+            val sel = selected == theme
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(colors[theme] ?: Color.Gray)
+                    .then(if (sel) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
+                    .clickable { onSelect(theme) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (sel) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1591,7 +1844,7 @@ private fun ClientDetailScreen(
                                     onDelete = { onDeleteInvoice(invoice.id) },
                                     onExportPdf = {
                                         val generator = com.ahmed.clientflow.pdf.InvoicePdfGenerator(context)
-                                        val uri = generator.generatePdf(invoice, client, payment)
+                                        val uri = generator.generatePdf(invoice, client, payment, state.freelancerInfo ?: com.ahmed.clientflow.data.FreelancerInfo())
                                         if (uri != null) {
                                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                                 type = "application/pdf"
@@ -1668,7 +1921,11 @@ private fun SecurityScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? androidx.fragment.app.FragmentActivity
-    val bioAvailable = activity?.let { com.ahmed.clientflow.security.BiometricAuthManager.canAuthenticate(it) } ?: false
+    val bioAvailable = try {
+        activity?.let { com.ahmed.clientflow.security.BiometricAuthManager.canAuthenticate(it) } ?: false
+    } catch (e: Exception) {
+        false
+    }
     var showBioConfirm by remember { mutableStateOf(false) }
 
     FormScaffold(title = tx("security", language), onBack = onBack) {
@@ -1701,8 +1958,12 @@ private fun SecurityScreen(
                             Switch(
                                 checked = biometricEnabled,
                                 onCheckedChange = { enabled ->
-                                    if (enabled && activity != null) {
-                                        showBioConfirm = true
+                                    if (enabled) {
+                                        if (activity != null) {
+                                            showBioConfirm = true
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Biometric not available", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     } else {
                                         onDisableBiometric()
                                     }
@@ -1716,18 +1977,29 @@ private fun SecurityScreen(
     }
 
     if (showBioConfirm && activity != null) {
-        val manager = remember(activity) { com.ahmed.clientflow.security.BiometricAuthManager(activity) }
-        LaunchedEffect(showBioConfirm) {
-            manager.authenticate(
-                title = "Fingerprint Unlock",
-                subtitle = "Confirm to enable fingerprint unlock",
-                onSuccess = {
-                    onEnableBiometric()
-                    showBioConfirm = false
-                },
-                onError = { showBioConfirm = false },
-                onFailed = { showBioConfirm = false }
-            )
+        var authCompleted by remember { mutableStateOf(false) }
+        if (!authCompleted) {
+            val manager = remember(activity) { com.ahmed.clientflow.security.BiometricAuthManager(activity) }
+            LaunchedEffect(showBioConfirm) {
+                try {
+                    manager.authenticate(
+                        title = "Fingerprint Unlock",
+                        subtitle = "Confirm to enable fingerprint unlock",
+                        onSuccess = {
+                            onEnableBiometric()
+                            authCompleted = true
+                        },
+                        onError = {
+                            authCompleted = true
+                        },
+                        onFailed = {
+                            authCompleted = true
+                        }
+                    )
+                } catch (e: Exception) {
+                    authCompleted = true
+                }
+            }
         }
     }
 }
@@ -1986,33 +2258,7 @@ private fun StatusFilters(selected: String, language: AppLanguage, onSelect: (St
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun StatusLanguageChips(selected: AppLanguage, onSelect: (AppLanguage) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppLanguage.entries.forEach { language ->
-            FilterChip(
-                selected = selected == language,
-                onClick = { onSelect(language) },
-                label = { Text(languageLabel(language)) }
-            )
-        }
-    }
-}
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun StatusThemeChips(selected: AppTheme, language: AppLanguage, onSelect: (AppTheme) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppTheme.entries.forEach { theme ->
-            FilterChip(
-                selected = selected == theme,
-                onClick = { onSelect(theme) },
-                label = { Text(themeLabel(theme, language)) }
-            )
-        }
-    }
-}
 
 private fun themeLabel(theme: AppTheme, language: AppLanguage): String = when (theme) {
     AppTheme.Default -> when (language) {
@@ -2049,15 +2295,31 @@ private fun themeLabel(theme: AppTheme, language: AppLanguage): String = when (t
 
 @Composable
 private fun SectionTitle(title: String) {
-    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Text(
+        title,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+    )
 }
 
 @Composable
 private fun EmptyCard(text: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
     }
 }
 
@@ -2067,10 +2329,15 @@ private fun StatsRow(items: List<Pair<String, String>>) {
         items.chunked(2).forEach { chunk ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 chunk.forEach { (label, value) ->
-                    Card(modifier = Modifier.weight(1f)) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -2079,45 +2346,211 @@ private fun StatsRow(items: List<Pair<String, String>>) {
     }
 }
 
+private fun clientStatusColor(status: ClientStatus): Color = when (status) {
+    ClientStatus.Lead      -> Color(0xFF8B5CF6)
+    ClientStatus.Quoted    -> Color(0xFFF59E0B)
+    ClientStatus.Booked    -> Color(0xFF3B82F6)
+    ClientStatus.Completed -> Color(0xFF22C55E)
+    else                   -> Color(0xFF6B7280)
+}
+
+private fun avatarColorFromName(name: String): Color {
+    val palette = listOf(
+        Color(0xFF7C3AED), Color(0xFF2563EB), Color(0xFF059669),
+        Color(0xFFD97706), Color(0xFFDC2626), Color(0xFF0891B2),
+        Color(0xFF65A30D), Color(0xFFDB2777)
+    )
+    val idx = Math.abs(name.hashCode()) % palette.size
+    return palette[idx]
+}
+
+private fun nameInitials(name: String): String {
+    val parts = name.trim().split(" ")
+    return if (parts.size >= 2) "${parts[0].firstOrNull() ?: ""}${parts[1].firstOrNull() ?: ""}".uppercase()
+    else name.take(2).uppercase()
+}
+
 @Composable
 private fun ClientCard(client: Client, payment: Payment?, language: AppLanguage, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(client.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                AssistChip(onClick = {}, label = { Text(statusLabel(client.status, language)) })
+    val statusColor = clientStatusColor(client.status)
+    val avatarColor = avatarColorFromName(client.name)
+    val payColor = when (payment?.status) {
+        PaymentStatus.Paid    -> Color(0xFF22C55E)
+        PaymentStatus.Partial -> Color(0xFFF59E0B)
+        PaymentStatus.Unpaid  -> Color(0xFFEF4444)
+        else                  -> Color.Transparent
+    }
+    val cardColor = MaterialTheme.colorScheme.surface
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardColor)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        // Left accent line
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .matchParentSize()
+                .background(statusColor.copy(alpha = 0.7f))
+                .align(Alignment.CenterStart)
+        )
+        Row(
+            modifier = Modifier.padding(start = 15.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Avatar
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(avatarColor.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(nameInitials(client.name), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
             }
-            Text(client.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (client.serviceType.isNotBlank()) Text(client.serviceType, color = MaterialTheme.colorScheme.primary)
-            payment?.let { Text("${tx("payment", language)}: ${paymentStatusLabel(it.status, language)}", color = when (it.status) {
-                PaymentStatus.Paid -> Color(0xFF15803D)
-                PaymentStatus.Partial -> Color(0xFFD97706)
-                PaymentStatus.Unpaid -> MaterialTheme.colorScheme.error
-            }) }
+            // Info column
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(client.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary, fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp))
+                    if (client.serviceType.isNotBlank()) {
+                        Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        Text(client.serviceType, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false))
+                    }
+                }
+                Text(
+                    "\uD83D\uDCDE ${client.phone}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = androidx.compose.ui.unit.TextUnit(12f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (payment != null) {
+                    Surface(shape = RoundedCornerShape(50), color = payColor.copy(alpha = 0.15f)) {
+                        Text(
+                            paymentStatusLabel(payment.status, language),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = payColor,
+                            fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp)
+                        )
+                    }
+                }
+            }
+            // Status badge top-right
+            Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.15f)) {
+                Text(
+                    statusLabel(client.status, language),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = statusColor,
+                    fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp)
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun BookingCard(booking: Booking, client: Client?, language: AppLanguage, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(client?.name ?: tx("unknown_client", language), fontWeight = FontWeight.Bold)
-            Text("${booking.date} ${booking.time}".trim(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            RecurrenceBadge(booking = booking, language = language)
-            if (booking.location.isNotBlank()) Text("${tx("location", language)}: ${booking.location}")
-            if (booking.notes.isNotBlank()) Text(booking.notes, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val clientStatus = client?.status ?: ClientStatus.Lead
+    val statusColor = clientStatusColor(clientStatus)
+    val avatarColor = avatarColorFromName(client?.name ?: "?")
+    val displayName = client?.name ?: tx("unknown_client", language)
+    val cardColor = MaterialTheme.colorScheme.surface
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardColor)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .matchParentSize()
+                .background(statusColor.copy(alpha = 0.7f))
+                .align(Alignment.CenterStart)
+        )
+        Row(
+            modifier = Modifier.padding(start = 15.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(avatarColor.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(nameInitials(displayName), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary, fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (booking.location.isNotBlank()) {
+                        Text("\uD83D\uDCCD ${booking.location}", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontSize = androidx.compose.ui.unit.TextUnit(12f, androidx.compose.ui.unit.TextUnitType.Sp),
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+                if (booking.notes.isNotBlank()) {
+                    Text(booking.notes, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        fontSize = androidx.compose.ui.unit.TextUnit(12f, androidx.compose.ui.unit.TextUnitType.Sp))
+                }
+            }
+            // Time badge
+            if (booking.time.isNotBlank()) {
+                Text(booking.time, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp))
+            }
         }
     }
 }
 
 @Composable
 private fun PaymentCard(client: Client, payment: Payment, language: AppLanguage, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2))) {
-        Column(Modifier.padding(16.dp)) {
-            Text(client.name, fontWeight = FontWeight.Bold)
-            Text("${tx("balance", language)}: $${payment.totalAmount - payment.paidAmount}", color = MaterialTheme.colorScheme.error)
-            Text("${tx("due", language)} ${payment.dueDate}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val cardColor = MaterialTheme.colorScheme.surface
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardColor)
+            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Box(modifier = Modifier.width(3.dp).matchParentSize().background(MaterialTheme.colorScheme.error.copy(alpha = 0.7f)).align(Alignment.CenterStart))
+        Row(
+            modifier = Modifier.padding(start = 15.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(avatarColorFromName(client.name).copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center) {
+                Text(nameInitials(client.name), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(client.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary,
+                    fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp))
+                Text("${tx("balance", language)}: $${"%.2f".format(payment.totalAmount - payment.paidAmount)}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Text("${tx("due", language)} ${payment.dueDate}", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         }
     }
 }
@@ -3080,6 +3513,46 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Save"
         AppLanguage.French -> "Enregistrer"
         AppLanguage.Arabic -> "حفظ"
+    }
+    "company_name" -> when (language) {
+        AppLanguage.English -> "Company Name"
+        AppLanguage.French -> "Nom de l'entreprise"
+        AppLanguage.Arabic -> "اسم الشركة"
+    }
+    "address" -> when (language) {
+        AppLanguage.English -> "Address"
+        AppLanguage.French -> "Adresse"
+        AppLanguage.Arabic -> "العنوان"
+    }
+    "phone" -> when (language) {
+        AppLanguage.English -> "Phone"
+        AppLanguage.French -> "Telephone"
+        AppLanguage.Arabic -> "الهاتف"
+    }
+    "email" -> when (language) {
+        AppLanguage.English -> "Email"
+        AppLanguage.French -> "Email"
+        AppLanguage.Arabic -> "البريد الإلكتروني"
+    }
+    "ice" -> when (language) {
+        AppLanguage.English -> "ICE"
+        AppLanguage.French -> "ICE"
+        AppLanguage.Arabic -> "ICE"
+    }
+    "logo_url" -> when (language) {
+        AppLanguage.English -> "Logo URL"
+        AppLanguage.French -> "URL du logo"
+        AppLanguage.Arabic -> "رابط الشعار"
+    }
+    "accent_color" -> when (language) {
+        AppLanguage.English -> "Accent Color"
+        AppLanguage.French -> "Couleur d'accent"
+        AppLanguage.Arabic -> "لون التمييز"
+    }
+    "invoice_note" -> when (language) {
+        AppLanguage.English -> "Invoice Note"
+        AppLanguage.French -> "Note de facture"
+        AppLanguage.Arabic -> "ملاحظة الفاتورة"
     }
     "template" -> when (language) {
         AppLanguage.English -> "Template"
