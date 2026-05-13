@@ -27,8 +27,8 @@ function App() {
             <span>{config?.projectId}</span>
           </div>
         </div>
-        
-        <button 
+
+        <button
           onClick={clearConfig}
           className="btn-disconnect"
         >
