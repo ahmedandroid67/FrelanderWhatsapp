@@ -126,9 +126,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.rememberLottieComposition
+
 import com.ahmed.clientflow.R
 import com.ahmed.clientflow.MainViewModel
 import com.ahmed.clientflow.ui.screen.BackupScreen
@@ -162,16 +160,15 @@ private data class BookingOccurrence(
     val occurrenceDate: String
 )
 
-private const val lottieJson = """
-{"v":"5.7.4","fr":30,"ip":0,"op":120,"w":200,"h":200,"nm":"pulse","ddd":0,"assets":[],"layers":[{"ddd":0,"ind":1,"ty":4,"nm":"Circle","sr":1,"ks":{"o":{"a":0,"k":100},"r":{"a":0,"k":0},"p":{"a":0,"k":[100,100,0]},"a":{"a":0,"k":[0,0,0]},"s":{"a":1,"k":[{"t":0,"s":[40,40,100]},{"t":60,"s":[100,100,100]},{"t":120,"s":[40,40,100]}]}},"shapes":[{"ty":"el","p":{"a":0,"k":[0,0]},"s":{"a":0,"k":[120,120]},"nm":"Ellipse Path 1"},{"ty":"fl","c":{"a":0,"k":[0.145,0.388,0.922,1]},"o":{"a":0,"k":100},"nm":"Fill 1"}],"ip":0,"op":120,"st":0,"bm":0}]}
-"""
 
-sealed class BottomRoute(val route: String, val label: String) {
-    data object Home : BottomRoute("home", "Home")
-    data object Clients : BottomRoute("clients", "Clients")
-    data object Bookings : BottomRoute("bookings", "Bookings")
-    data object Revenue : BottomRoute("revenue", "Revenue")
-    data object Analytics : BottomRoute("analytics", "Analytics")
+
+sealed class BottomRoute(val route: String, val labelKey: String) {
+    data object Home : BottomRoute("home", "home")
+    data object Clients : BottomRoute("clients", "clients")
+    data object Bookings : BottomRoute("bookings", "bookings")
+    data object Revenue : BottomRoute("revenue", "revenue")
+    data object Analytics : BottomRoute("analytics", "analytics")
+    data object Settings : BottomRoute("settings", "settings")
 }
 
 @Composable
@@ -203,7 +200,6 @@ fun ClientFlowApp(viewModel: MainViewModel) {
 private fun SetupPinScreen(viewModel: MainViewModel, language: AppLanguage) {
     var pin by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
-    val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(lottieJson))
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -212,7 +208,8 @@ private fun SetupPinScreen(viewModel: MainViewModel, language: AppLanguage) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            LottieAnimation(composition = composition, iterations = Int.MAX_VALUE, modifier = Modifier.size(180.dp))
+            Image(painter = painterResource(id = R.drawable.clientflow_icon), contentDescription = null, modifier = Modifier.size(120.dp))
+            Spacer(Modifier.height(16.dp))
             Text(tx("secure_clientflow", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(tx("set_pin", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
@@ -242,7 +239,7 @@ private fun LockScreen(viewModel: MainViewModel, pinError: Boolean, biometricEna
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Lock, null, modifier = Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
+            Image(painter = painterResource(id = R.drawable.clientflow_icon), contentDescription = null, modifier = Modifier.size(88.dp))
             Spacer(Modifier.height(16.dp))
             Text(tx("app_locked", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(tx("enter_pin_continue", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -293,13 +290,14 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
                 tonalElevation = 0.dp
             ) {
-                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue, BottomRoute.Analytics).forEach { route ->
+                listOf(BottomRoute.Home, BottomRoute.Clients, BottomRoute.Bookings, BottomRoute.Revenue, BottomRoute.Analytics, BottomRoute.Settings).forEach { route ->
                     val icon = when (route) {
                         BottomRoute.Home -> Icons.Default.Home
                         BottomRoute.Clients -> Icons.Default.People
                         BottomRoute.Bookings -> Icons.Default.CalendarMonth
                         BottomRoute.Revenue -> Icons.Default.Shield
                         BottomRoute.Analytics -> Icons.Default.Star
+                        BottomRoute.Settings -> Icons.Default.Settings
                     }
                     val sel = currentRoute == route.route
                     NavigationBarItem(
@@ -314,7 +312,7 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                                 }
                             }
                         },
-                        label = { Text(route.label, style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(t(route.labelKey, state.language), style = MaterialTheme.typography.labelSmall) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = navGold,
                             selectedTextColor = navGold,
@@ -343,7 +341,6 @@ private fun MainScaffold(viewModel: MainViewModel, state: AppState, deviceId: St
                 DashboardScreen(
                     state = state,
                     onOpenClient = { navController.navigate("client/$it") },
-                    onOpenSettings = { navController.navigate("settings") },
                     onExport = viewModel::exportData
                 )
             }
@@ -560,10 +557,10 @@ private fun RevenueScreen(state: AppState, onOpenExpenses: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Total Revenue", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
+                    Text(t("total_revenue", language), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
                     Text("$${formatAmount(totalRevenue)}", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(Modifier.height(4.dp))
-                    Text("Pending: $${formatAmount(pendingAmount)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
+                    Text("${t("pending", language)}: $${formatAmount(pendingAmount)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
                 }
             }
         }
@@ -573,13 +570,13 @@ private fun RevenueScreen(state: AppState, onOpenExpenses: () -> Unit) {
                 Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.12f))) {
                     Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("$${formatAmount(netProfit)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (netProfit >= 0) Color(0xFF4CAF50) else Color(0xFFE53935))
-                        Text("Net Profit", style = MaterialTheme.typography.labelSmall)
+                        Text(t("net_profit", language), style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Color(0xFFE53935).copy(alpha = 0.12f))) {
                     Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("-$${formatAmount(totalExpenses)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
-                        Text("Expenses", style = MaterialTheme.typography.labelSmall)
+                        Text(t("expenses", language), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -587,18 +584,33 @@ private fun RevenueScreen(state: AppState, onOpenExpenses: () -> Unit) {
 
         item {
             OutlinedButton(onClick = onOpenExpenses, modifier = Modifier.fillMaxWidth()) {
-                Text("View All Expenses")
+                Text(t("view_all_expenses", language))
             }
         }
     }
 }
 
-private enum class AnalyticsPeriod { ALL_TIME, THIS_MONTH, THIS_YEAR }
+private enum class AnalyticsPeriod { ALL_TIME, THIS_MONTH, THIS_YEAR, CUSTOM }
 
+private fun strToMs(s: String, endOfDay: Boolean = false): Long {
+    val p = s.split("-")
+    if (p.size != 3) return 0L
+    return java.util.Calendar.getInstance().apply {
+        set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt(),
+            if (endOfDay) 23 else 0,
+            if (endOfDay) 59 else 0,
+            if (endOfDay) 59 else 0)
+    }.timeInMillis
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
     val language = state.language
     var selectedPeriod by rememberSaveable { mutableStateOf(AnalyticsPeriod.ALL_TIME) }
+    var customFrom by rememberSaveable { mutableStateOf("") }
+    var customTo by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
 
     val calendar = java.util.Calendar.getInstance()
     val currentMonth = calendar.get(java.util.Calendar.MONTH)
@@ -615,6 +627,11 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
                 val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
                 createdCal.get(java.util.Calendar.YEAR) == currentYear
             }
+            AnalyticsPeriod.CUSTOM -> {
+                val fromMs = strToMs(customFrom)
+                val toMs = strToMs(customTo, endOfDay = true)
+                client.createdAt in fromMs..toMs
+            }
         }
     }
 
@@ -630,6 +647,12 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
                 val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
                 createdCal.get(java.util.Calendar.YEAR) == currentYear
             }
+            AnalyticsPeriod.CUSTOM -> {
+                if (payment.dueDate.isBlank()) return@filter false
+                val fromMs = strToMs(customFrom)
+                val toMs = strToMs(customTo, endOfDay = true)
+                strToMs(payment.dueDate) in fromMs..toMs
+            }
         }
     }
 
@@ -644,6 +667,12 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
             AnalyticsPeriod.THIS_YEAR -> {
                 val createdCal = java.util.Calendar.getInstance().apply { timeInMillis = client.createdAt }
                 createdCal.get(java.util.Calendar.YEAR) == currentYear
+            }
+            AnalyticsPeriod.CUSTOM -> {
+                if (booking.date.isBlank()) return@filter false
+                val fromMs = strToMs(customFrom)
+                val toMs = strToMs(customTo, endOfDay = true)
+                strToMs(booking.date) in fromMs..toMs
             }
         }
     }
@@ -680,13 +709,13 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(t("analytics", language), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     FilterChip(
                         selected = selectedPeriod == AnalyticsPeriod.ALL_TIME,
                         onClick = { selectedPeriod = AnalyticsPeriod.ALL_TIME },
@@ -701,6 +730,84 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
                         selected = selectedPeriod == AnalyticsPeriod.THIS_YEAR,
                         onClick = { selectedPeriod = AnalyticsPeriod.THIS_YEAR },
                         label = { Text(t("this_year", language), style = MaterialTheme.typography.labelSmall) }
+                    )
+                    FilterChip(
+                        selected = selectedPeriod == AnalyticsPeriod.CUSTOM,
+                        onClick = { selectedPeriod = AnalyticsPeriod.CUSTOM },
+                        label = { Text(t("custom", language), style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+        }
+
+        if (selectedPeriod == AnalyticsPeriod.CUSTOM) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = customFrom,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(t("from", language)) },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    val cal = java.util.Calendar.getInstance()
+                                    DatePickerDialog(
+                                        context,
+                                        { _, year, month, dayOfMonth ->
+                                            customFrom = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                                        },
+                                        if (customFrom.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customFrom.split("-"); p[0].toInt()
+                                        } else cal.get(java.util.Calendar.YEAR),
+                                        if (customFrom.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customFrom.split("-"); p[1].toInt() - 1
+                                        } else cal.get(java.util.Calendar.MONTH),
+                                        if (customFrom.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customFrom.split("-"); p[2].toInt()
+                                        } else cal.get(java.util.Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }
+                            ) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = "Select from date")
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = customTo,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(t("to_date", language)) },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    val cal = java.util.Calendar.getInstance()
+                                    DatePickerDialog(
+                                        context,
+                                        { _, year, month, dayOfMonth ->
+                                            customTo = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                                        },
+                                        if (customTo.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customTo.split("-"); p[0].toInt()
+                                        } else cal.get(java.util.Calendar.YEAR),
+                                        if (customTo.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customTo.split("-"); p[1].toInt() - 1
+                                        } else cal.get(java.util.Calendar.MONTH),
+                                        if (customTo.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                                            val p = customTo.split("-"); p[2].toInt()
+                                        } else cal.get(java.util.Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }
+                            ) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = "Select to date")
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -754,7 +861,7 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
                             Text("💼", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(4.dp))
                             Text("$${formatAmount(pipelineValue)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text("$wonPercent% won", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("$wonPercent% ${t("won", language)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -820,7 +927,7 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
                         Text(t("pipeline_value", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(12.dp))
                         val paymentColors = listOf(Color(0xFF4CAF50), Color(0xFFFF9800), Color(0xFFE53935))
-                        val paymentLabels = listOf("Paid", "Partial", "Unpaid")
+                        val paymentLabels = listOf(t("paid_status", language), t("partial", language), t("unpaid", language))
                         val paymentValues = listOf(
                             filteredPayments.filter { it.status == PaymentStatus.Paid }.sumOf { it.totalAmount },
                             filteredPayments.filter { it.status == PaymentStatus.Partial }.sumOf { it.totalAmount },
@@ -855,7 +962,6 @@ private fun AnalyticsScreen(state: AppState, onBack: () -> Unit) {
 private fun DashboardScreen(
     state: AppState,
     onOpenClient: (String) -> Unit,
-    onOpenSettings: () -> Unit,
     onExport: () -> Unit
 ) {
     val today = todayKey()
@@ -885,8 +991,6 @@ private fun DashboardScreen(
                         Text(formatDateHuman(System.currentTimeMillis()), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                IconButton(onClick = onExport) { Icon(Icons.AutoMirrored.Filled.Send, null) }
-                IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, null) }
             }
         }
         item {
@@ -1029,7 +1133,7 @@ private fun SettingsScreen(
                         }
                         Spacer(Modifier.width(14.dp))
                         Column {
-                            Text(tx("developer_name", language), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Ahmed KHAMAR", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(tx("developer_role", language), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -1256,7 +1360,7 @@ private fun BookingsScreen(
             add(Calendar.MONTH, monthOffset)
         }
     }
-    val monthLabel = SimpleDateFormat("MMMM yyyy", Locale.US).format(monthCalendar.time)
+    val monthLabel = SimpleDateFormat("MMMM yyyy", getLocale(language)).format(monthCalendar.time)
     val daysInMonth = monthCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
     val leadingBlanks = ((monthCalendar.get(Calendar.DAY_OF_WEEK) + 5) % 7)
     val dateBookingCount = bookings.groupingBy { it.occurrenceDate }.eachCount()
@@ -1298,8 +1402,8 @@ private fun BookingsScreen(
                             )
                             IconButton(onClick = { monthOffset += 1 }) { Icon(Icons.Default.ChevronRight, null) }
                         }
-                        CalendarLegend()
-                        CalendarWeekHeader()
+                        CalendarLegend(language)
+                        CalendarWeekHeader(language)
                         AnimatedContent(
                             targetState = monthOffset,
                             transitionSpec = {
@@ -1387,11 +1491,11 @@ private fun BookingsScreen(
 }
 
 @Composable
-private fun CalendarLegend() {
+private fun CalendarLegend(language: AppLanguage) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        LegendItem(color = Color(0xFF16A34A), label = "1 booking")
-        LegendItem(color = Color(0xFFD97706), label = "2 bookings")
-        LegendItem(color = Color(0xFFDC2626), label = "3+ bookings")
+        LegendItem(color = Color(0xFF16A34A), label = tx("1_booking", language))
+        LegendItem(color = Color(0xFFD97706), label = tx("2_bookings", language))
+        LegendItem(color = Color(0xFFDC2626), label = tx("3plus_bookings", language))
     }
 }
 
@@ -1404,11 +1508,11 @@ private fun LegendItem(color: Color, label: String) {
 }
 
 @Composable
-private fun CalendarWeekHeader() {
+private fun CalendarWeekHeader(language: AppLanguage) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-        listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { day ->
+        listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun").forEach { dayKey ->
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Text(day, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tx(dayKey, language), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -1932,6 +2036,7 @@ private fun SecurityScreen(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Image(painter = painterResource(id = R.drawable.clientflow_icon), contentDescription = null, modifier = Modifier.size(64.dp))
                     Text(tx("app_security", language), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(tx("security_desc", language), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(onClick = onLock, modifier = Modifier.fillMaxWidth()) { Text(tx("lock_now", language)) }
@@ -1988,18 +2093,24 @@ private fun SecurityScreen(
                         onSuccess = {
                             onEnableBiometric()
                             authCompleted = true
+                            showBioConfirm = false
                         },
                         onError = {
                             authCompleted = true
+                            showBioConfirm = false
                         },
                         onFailed = {
                             authCompleted = true
+                            showBioConfirm = false
                         }
                     )
                 } catch (e: Exception) {
                     authCompleted = true
+                    showBioConfirm = false
                 }
             }
+        } else {
+            showBioConfirm = false
         }
     }
 }
@@ -2836,10 +2947,32 @@ private fun languageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.Arabic -> "العربية"
 }
 
-private fun tr(key: String, language: AppLanguage): String = when (key) {
+private fun tr(key: String, language: AppLanguage): String = t(key, language)
+
+private fun t(key: String, language: AppLanguage): String = when (key) {
+    "won" -> when (language) {
+        AppLanguage.English -> "won"
+        AppLanguage.French -> "gagné"
+        AppLanguage.Arabic -> "ناجح"
+    }
+    "paid_status" -> when (language) {
+        AppLanguage.English -> "Paid"
+        AppLanguage.French -> "Payé"
+        AppLanguage.Arabic -> "مدفوع"
+    }
+    "partial" -> when (language) {
+        AppLanguage.English -> "Partial"
+        AppLanguage.French -> "Partiel"
+        AppLanguage.Arabic -> "جزئي"
+    }
+    "unpaid" -> when (language) {
+        AppLanguage.English -> "Unpaid"
+        AppLanguage.French -> "Impayé"
+        AppLanguage.Arabic -> "غير مدفوع"
+    }
     "settings" -> when (language) {
         AppLanguage.English -> "Settings"
-        AppLanguage.French -> "Parametres"
+        AppLanguage.French -> "Paramètres"
         AppLanguage.Arabic -> "الإعدادات"
     }
     "language" -> when (language) {
@@ -2854,12 +2987,12 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "security" -> when (language) {
         AppLanguage.English -> "Security"
-        AppLanguage.French -> "Securite"
+        AppLanguage.French -> "Sécurité"
         AppLanguage.Arabic -> "الأمان"
     }
     "open_security" -> when (language) {
         AppLanguage.English -> "Open security"
-        AppLanguage.French -> "Ouvrir securite"
+        AppLanguage.French -> "Ouvrir sécurité"
         AppLanguage.Arabic -> "فتح الأمان"
     }
     "plan" -> when (language) {
@@ -2879,7 +3012,7 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "manage_plan" -> when (language) {
         AppLanguage.English -> "Manage plan"
-        AppLanguage.French -> "Gerer forfait"
+        AppLanguage.French -> "Gérer forfait"
         AppLanguage.Arabic -> "إدارة الخطة"
     }
     "contact_for_code" -> when (language) {
@@ -2889,17 +3022,17 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "theme" -> when (language) {
         AppLanguage.English -> "App Theme"
-        AppLanguage.French -> "Theme"
+        AppLanguage.French -> "Thème"
         AppLanguage.Arabic -> "سمة التطبيق"
     }
     "theme_desc" -> when (language) {
         AppLanguage.English -> "Choose app color theme."
-        AppLanguage.French -> "Choisir le theme de couleur."
+        AppLanguage.French -> "Choisir le thème de couleur."
         AppLanguage.Arabic -> "اختر سمة ألوان التطبيق."
     }
     "preferences" -> when (language) {
         AppLanguage.English -> "Preferences"
-        AppLanguage.French -> "Preferences"
+        AppLanguage.French -> "Préférences"
         AppLanguage.Arabic -> "التفضيلات"
     }
     "account_section" -> when (language) {
@@ -2909,7 +3042,7 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "security_desc" -> when (language) {
         AppLanguage.English -> "PIN lock enabled. Data stays local on device."
-        AppLanguage.French -> "Verrou PIN actif. Donnees restent locales."
+        AppLanguage.French -> "Verrou PIN actif. Données restent locales."
         AppLanguage.Arabic -> "قفل PIN مفعل. البيانات تبقى محلية على الجهاز."
     }
     "invoice_profile" -> when (language) {
@@ -2919,12 +3052,12 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "invoice_profile_desc" -> when (language) {
         AppLanguage.English -> "Set default info for invoices"
-        AppLanguage.French -> "Definir infos par defaut factures"
+        AppLanguage.French -> "Définir infos par défaut factures"
         AppLanguage.Arabic -> "تعيين المعلومات الافتراضية للفواتير"
     }
     "data_section" -> when (language) {
         AppLanguage.English -> "Data"
-        AppLanguage.French -> "Donnees"
+        AppLanguage.French -> "Données"
         AppLanguage.Arabic -> "البيانات"
     }
     "backup_restore" -> when (language) {
@@ -2934,7 +3067,7 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "backup_restore_desc" -> when (language) {
         AppLanguage.English -> "Export or restore app data"
-        AppLanguage.French -> "Exporter ou restaurer donnees"
+        AppLanguage.French -> "Exporter ou restaurer données"
         AppLanguage.Arabic -> "تصدير أو استعادة بيانات التطبيق"
     }
     "subscription_section" -> when (language) {
@@ -2944,17 +3077,48 @@ private fun tr(key: String, language: AppLanguage): String = when (key) {
     }
     "about_section" -> when (language) {
         AppLanguage.English -> "About"
-        AppLanguage.French -> "A propos"
+        AppLanguage.French -> "À propos"
         AppLanguage.Arabic -> "حول"
     }
-    else -> key
-}
-
-private fun t(key: String, language: AppLanguage): String = when (key) {
+    "total_revenue" -> when (language) {
+        AppLanguage.English -> "Total Revenue"
+        AppLanguage.French -> "Revenu Total"
+        AppLanguage.Arabic -> "إجمالي الإيرادات"
+    }
+    "pending" -> when (language) {
+        AppLanguage.English -> "Pending"
+        AppLanguage.French -> "En attente"
+        AppLanguage.Arabic -> "قيد الانتظار"
+    }
+    "net_profit" -> when (language) {
+        AppLanguage.English -> "Net Profit"
+        AppLanguage.French -> "Bénéfice Net"
+        AppLanguage.Arabic -> "صافي الربح"
+    }
+    "expenses" -> when (language) {
+        AppLanguage.English -> "Expenses"
+        AppLanguage.French -> "Dépenses"
+        AppLanguage.Arabic -> "المصاريف"
+    }
+    "view_all_expenses" -> when (language) {
+        AppLanguage.English -> "View All Expenses"
+        AppLanguage.French -> "Voir toutes les dépenses"
+        AppLanguage.Arabic -> "عرض جميع المصاريف"
+    }
+    "home" -> when (language) {
+        AppLanguage.English -> "Home"
+        AppLanguage.French -> "Accueil"
+        AppLanguage.Arabic -> "الرئيسية"
+    }
     "clients" -> when (language) {
         AppLanguage.English -> "Clients"
         AppLanguage.French -> "Clients"
         AppLanguage.Arabic -> "العملاء"
+    }
+    "bookings" -> when (language) {
+        AppLanguage.English -> "Bookings"
+        AppLanguage.French -> "Réservations"
+        AppLanguage.Arabic -> "المواعيد"
     }
     "revenue" -> when (language) {
         AppLanguage.English -> "Revenue"
@@ -3106,26 +3270,32 @@ private fun t(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "jusqu'au"
         AppLanguage.Arabic -> "حتى"
     }
-    "unpaid" -> when (language) {
-        AppLanguage.English -> "Unpaid"
-        AppLanguage.French -> "Impayee"
-        AppLanguage.Arabic -> "غير مدفوع"
+    "custom" -> when (language) {
+        AppLanguage.English -> "Custom"
+        AppLanguage.French -> "Personnalise"
+        AppLanguage.Arabic -> "مخصص"
     }
-    "partial" -> when (language) {
-        AppLanguage.English -> "Partial"
-        AppLanguage.French -> "Partiel"
-        AppLanguage.Arabic -> "جزئي"
+    "from" -> when (language) {
+        AppLanguage.English -> "From"
+        AppLanguage.French -> "De"
+        AppLanguage.Arabic -> "من"
     }
-    "paid_status" -> when (language) {
-        AppLanguage.English -> "Paid"
-        AppLanguage.French -> "Paye"
-        AppLanguage.Arabic -> "مدفوع"
+    "to_date" -> when (language) {
+        AppLanguage.English -> "To"
+        AppLanguage.French -> "A"
+        AppLanguage.Arabic -> "إلى"
     }
     else -> tx(key, language)
 }
 
 private fun formatAmount(amount: Double): String {
     return if (amount == amount.toLong().toDouble()) "%.0f".format(amount) else "%.2f".format(amount)
+}
+
+private fun getLocale(language: AppLanguage): Locale = when (language) {
+    AppLanguage.English -> Locale.US
+    AppLanguage.French -> Locale.FRANCE
+    AppLanguage.Arabic -> Locale("ar")
 }
 
 private fun tx(key: String, language: AppLanguage): String = when (key) {
@@ -3379,6 +3549,56 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Reservations"
         AppLanguage.Arabic -> "المواعيد"
     }
+    "1_booking" -> when (language) {
+        AppLanguage.English -> "1 booking"
+        AppLanguage.French -> "1 réservation"
+        AppLanguage.Arabic -> "حجز واحد"
+    }
+    "2_bookings" -> when (language) {
+        AppLanguage.English -> "2 bookings"
+        AppLanguage.French -> "2 réservations"
+        AppLanguage.Arabic -> "حجزان"
+    }
+    "3plus_bookings" -> when (language) {
+        AppLanguage.English -> "3+ bookings"
+        AppLanguage.French -> "3+ réservations"
+        AppLanguage.Arabic -> "+3 حجوزات"
+    }
+    "mon" -> when (language) {
+        AppLanguage.English -> "Mon"
+        AppLanguage.French -> "Lun"
+        AppLanguage.Arabic -> "ن"
+    }
+    "tue" -> when (language) {
+        AppLanguage.English -> "Tue"
+        AppLanguage.French -> "Mar"
+        AppLanguage.Arabic -> "ث"
+    }
+    "wed" -> when (language) {
+        AppLanguage.English -> "Wed"
+        AppLanguage.French -> "Mer"
+        AppLanguage.Arabic -> "ر"
+    }
+    "thu" -> when (language) {
+        AppLanguage.English -> "Thu"
+        AppLanguage.French -> "Jeu"
+        AppLanguage.Arabic -> "خ"
+    }
+    "fri" -> when (language) {
+        AppLanguage.English -> "Fri"
+        AppLanguage.French -> "Ven"
+        AppLanguage.Arabic -> "ج"
+    }
+    "sat" -> when (language) {
+        AppLanguage.English -> "Sat"
+        AppLanguage.French -> "Sam"
+        AppLanguage.Arabic -> "س"
+    }
+    "sun" -> when (language) {
+        AppLanguage.English -> "Sun"
+        AppLanguage.French -> "Dim"
+        AppLanguage.Arabic -> "ح"
+    }
     "invoice" -> when (language) {
         AppLanguage.English -> "Invoice"
         AppLanguage.French -> "Facture"
@@ -3579,11 +3799,6 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.French -> "Adresse"
         AppLanguage.Arabic -> "العنوان"
     }
-    "phone" -> when (language) {
-        AppLanguage.English -> "Phone"
-        AppLanguage.French -> "Telephone"
-        AppLanguage.Arabic -> "الهاتف"
-    }
     "email" -> when (language) {
         AppLanguage.English -> "Email"
         AppLanguage.French -> "Email"
@@ -3638,11 +3853,6 @@ private fun tx(key: String, language: AppLanguage): String = when (key) {
         AppLanguage.English -> "Invoice Profile"
         AppLanguage.French -> "Profil Facture"
         AppLanguage.Arabic -> "الملف التعريفي للفاتورة"
-    }
-    "developer_name" -> when (language) {
-        AppLanguage.English -> "Ahmed Laraichi"
-        AppLanguage.French -> "Ahmed Laraichi"
-        AppLanguage.Arabic -> "أحمد لعريشي"
     }
     "developer_role" -> when (language) {
         AppLanguage.English -> "Mobile Developer"

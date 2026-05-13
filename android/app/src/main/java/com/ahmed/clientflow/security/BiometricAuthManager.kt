@@ -8,9 +8,17 @@ import androidx.fragment.app.FragmentActivity
 
 class BiometricAuthManager(private val activity: FragmentActivity) {
 
+    private val authenticators = if (BiometricManager.from(activity)
+            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    ) {
+        BiometricManager.Authenticators.BIOMETRIC_STRONG
+    } else {
+        BiometricManager.Authenticators.BIOMETRIC_WEAK
+    }
+
     fun isAvailable(): Boolean {
         return BiometricManager.from(activity)
-            .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+            .canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
     fun authenticate(
@@ -38,15 +46,22 @@ class BiometricAuthManager(private val activity: FragmentActivity) {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .setAllowedAuthenticators(authenticators)
             .build()
         biometricPrompt.authenticate(promptInfo)
     }
 
     companion object {
         fun canAuthenticate(context: Context): Boolean {
+            val authenticators = if (BiometricManager.from(context)
+                    .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+            ) {
+                BiometricManager.Authenticators.BIOMETRIC_STRONG
+            } else {
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+            }
             return BiometricManager.from(context)
-                .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+                .canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS
         }
     }
 }

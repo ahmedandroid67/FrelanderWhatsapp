@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -461,36 +460,14 @@ fun ExpenseFormScreen(
                 minLines = 2
             )
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = dateText,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text(tx("date", language)) },
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                focusManager.clearFocus()
-                                DatePickerDialog(
-                                    context,
-                                    { _, year, month, dayOfMonth ->
-                                        dateText = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
-                                    },
-                                    calendar.get(Calendar.YEAR),
-                                    calendar.get(Calendar.MONTH),
-                                    calendar.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            }
-                        ) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Select date")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clickable {
+            OutlinedTextField(
+                value = dateText,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(tx("date", language)) },
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
                             focusManager.clearFocus()
                             DatePickerDialog(
                                 context,
@@ -502,8 +479,12 @@ fun ExpenseFormScreen(
                                 calendar.get(Calendar.DAY_OF_MONTH)
                             ).show()
                         }
-                )
-            }
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = "Select date")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (clients.isNotEmpty()) {
                 ExposedDropdownMenuBox(

@@ -1,6 +1,7 @@
 package com.ahmed.clientflow.ui.screen
 
 import android.app.Activity
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +66,7 @@ fun BackupScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var importResult by remember { mutableStateOf<BackupManager.RestoreResult?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
 
     val createDocumentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -87,6 +89,7 @@ fun BackupScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
+            pendingImportUri = uri
             showImportDialog = true
         }
     }
@@ -264,8 +267,19 @@ fun BackupScreen(
                 showImportDialog = false
                 scope.launch {
                     isLoading = true
-                    // Note: We need to get the URI again, this is a simplification
-                    // In production, you'd store the URI temporarily
+                    val uri = pendingImportUri
+                    if (uri != null) {
+                        val repository = com.ahmed.clientflow.data.AppRepository(context)
+                        val manager = BackupManager(context, repository)
+                        val result = manager.importFromUri(uri, mergeStrategy)
+                        importResult = result
+                        if (result.success) {
+                            onBackupComplete(System.currentTimeMillis())
+                        }
+                    } else {
+                        importResult = BackupManager.RestoreResult(false, "No file selected")
+                    }
+                    pendingImportUri = null
                     isLoading = false
                 }
             }
